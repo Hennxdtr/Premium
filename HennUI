@@ -1,0 +1,24 @@
+local UILib = loadstring(game:HttpGet("https://raw.githubusercontent.com/HugeGamesio/HugeGamesv3/main/Lib.lua"))
+
+local UI = UILib:CreateUI()
+
+local Tab = UI:CreateTab("HugeGames")
+Tab:Label("HugeGames", {Color=Color3.fromRGB(0,155,255), Allignment=Enum.TextXAlignment.Center})
+Tab:Label("#1 Script Provider", {Color=Color3.fromRGB(255,255,255), Allignment=Enum.TextXAlignment.Center})
+
+local Tab = UI:CreateTab("HugeGames")
+Tab:Label("Farm")
+
+local Section = Tab:Section("Main Section")
+
+Section:BlankSpace()
+
+Section:Label("HugeGames", <Optional, Table {Color=Color3Object, Allignment=TextXAllignmentObject} | Default: {Color=Color3.fromRGB(175,175,175), Allignment=Enum.TextXAlignment.Left}>)
+
+Section:Toggle("Toggle Test", <Boolean, IsToggled | Default: false>, function(isToggled)
+
+end)
+
+Section:Button("Auto Egg", function()
+	
+end)
