@@ -43,5 +43,5 @@ initializeUI()
 
 -- Memastikan UI dimuat ulang setelah teleportasi
 queue_on_teleport([[
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/Sidhsksjsjsh/VAPE-UI-MODDED/main/.lua"))()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/HugeGamess/Premium/main/TestAutoMacrohttps://raw.githubusercontent.com/HugeGamess/Premium/main/TestAutoMacro"))()
 ]])
