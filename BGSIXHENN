@@ -4,7 +4,14 @@ local buttonMap = {}
 local currentIsland = nil
 
 
+local player = game.Players.LocalPlayer
+local gui = player:WaitForChild("PlayerGui"):FindFirstChild("ScreenGui")
 
+if gui then
+    local targetFolder = gui:FindFirstChild("_overplay")
+    if targetFolder then
+        targetFolder:Destroy()
+	end
 
 local remote = game:GetService("ReplicatedStorage"):WaitForChild("Shared", 9e9)
     :WaitForChild("Framework", 9e9)
