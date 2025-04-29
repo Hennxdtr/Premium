@@ -27,6 +27,15 @@ function getGemAmount()
     return gemAmount
 end
 
+local player = game.Players.LocalPlayer
+local gui = player:WaitForChild("PlayerGui"):FindFirstChild("ScreenGui")
+
+if gui then
+    local targetFolder = gui:FindFirstChild("_overplay")
+    if targetFolder then
+        targetFolder:Destroy()
+end
+
 function openGifts(amount)
     local args = {
         [1] = "UseGift",
