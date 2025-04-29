@@ -1,0 +1,2014 @@
+local player = game.Players.LocalPlayer
+local taskStates = {}
+local buttonMap = {}
+local currentIsland = nil
+
+
+
+
+local remote = game:GetService("ReplicatedStorage"):WaitForChild("Shared", 9e9)
+    :WaitForChild("Framework", 9e9)
+    :WaitForChild("Network", 9e9)
+    :WaitForChild("Remote", 9e9)
+    :WaitForChild("Event", 9e9)
+
+function getGemAmount()
+    local Players = game:GetService("Players")
+    local player = Players:GetPlayers()[1]
+    local username = player.Name
+    
+    local gemValue = player:WaitForChild("PlayerGui")
+    :WaitForChild("ScreenGui"):WaitForChild("HUD"):WaitForChild("Left"):WaitForChild("Currency"):WaitForChild("Gems"):WaitForChild("Frame"):WaitForChild("Label").Text
+    
+    print("Username: ", username)
+    print(gemValue)
+    
+    local gemAmount = tonumber(gemValue:gsub(",", ""))
+    return gemAmount
+end
+
+function openGifts(amount)
+    local args = {
+        [1] = "UseGift",
+        [2] = "Mystery Box",
+        [3] = amount
+    }
+
+    game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Framework"):WaitForChild("Network"):WaitForChild("Remote"):WaitForChild("Event"):FireServer(unpack(args))
+
+    for _, gift in pairs(game:GetService("Workspace"):WaitForChild("Rendered"):WaitForChild("Gifts"):getChildren()) do
+        local args = {
+            [1] = "ClaimGift",
+            [2] = gift.Name
+        }
+
+        game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Framework"):WaitForChild("Network"):WaitForChild("Remote"):WaitForChild("Event"):FireServer(unpack(args))
+
+        gift:Destroy()
+    end
+end
+
+function deleteToEasterIsland()
+    local args = {
+        [1] = "Teleport",
+        [2] = "Workspace.Event.Portal.Spawn"
+    }
+        
+    game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Framework"):WaitForChild("Network"):WaitForChild("Remote"):WaitForChild("Event"):FireServer(unpack(args))
+
+    taskStates["Easter Island"] = false
+    local ref = buttonMap["Easter Island"]
+    if ref then
+        ref.checkmark.Visible = false
+    end
+end
+
+function blowBubble()
+    task.spawn(function()
+        while taskStates["Blow Bubble"] do
+            local args = { [1] = "BlowBubble" }
+            remote:FireServer(unpack(args))
+            task.wait(0.25)
+        end
+    end)
+end
+
+
+local originalSellPos
+function autoSell()
+    task.spawn(function()
+        while taskStates["Auto Sell"] do
+            local args = {
+                [1] = "SellBubble"
+            }
+            local autoSellRoot = workspace:WaitForChild("Worlds"):WaitForChild("The Overworld"):WaitForChild("Islands"):WaitForChild("Twilight"):WaitForChild("Island"):WaitForChild("Sell"):WaitForChild("Root")
+            if not originalSellPos then
+                originalSellPos = autoSellRoot.CFrame
+            end
+
+
+            local player =game.Players.localPlayer
+            local name = player.Name
+
+            workspace:WaitForChild(name):WaitForChild("HumanoidRootPart").CFrame = autoSellRoot.CFrame
+
+            game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Framework"):WaitForChild("Network"):WaitForChild("Remote"):WaitForChild("Event"):FireServer(unpack(args))
+
+            task.wait(1)
+        end
+    end)
+end
+
+function openGoldenChest()
+    task.spawn(function()
+        while taskStates["Open Golden Chest"] do
+            local args = {
+                [1] = "UnlockRiftChest",
+                [2] = "golden-chest",
+                [3] = false
+            }
+            remote:FireServer(unpack(args))
+            task.wait(0.25)
+        end
+    end)
+end
+
+function openRoyalChest()
+    task.spawn(function()
+        while taskStates["Open Royal Chest"] do
+            local args = {
+                [1] = "UnlockRiftChest",
+                [2] = "royal-chest",
+                [3] = false
+            }
+            remote:FireServer(unpack(args))
+            task.wait(0.25)
+        end
+    end)
+end
+
+function claimChests()
+    task.spawn(function()
+        while taskStates["Claim Chests"] do
+            local remote = game:GetService("ReplicatedStorage"):WaitForChild("Shared", 9e9)
+                :WaitForChild("Framework", 9e9)
+                :WaitForChild("Network", 9e9)
+                :WaitForChild("Remote", 9e9)
+                :WaitForChild("Event", 9e9)
+
+            remote:FireServer("ClaimChest", "Infinity Chest")
+
+            remote:FireServer("ClaimChest", "Void Chest", true)
+
+            remote:FireServer("ClaimChest", "Giant Chest", true)
+
+            remote:FireServer("ClaimRiftGift", "gift-rift")
+
+            task.wait(15)
+        end
+    end)
+end
+
+
+afk_counter = 0
+function antiAFK()
+    task.spawn(function()
+        local vu = game:GetService("VirtualUser")
+        game:GetService("Players").LocalPlayer.Idled:Connect(function()
+            if taskStates["Anti AFK"] then
+                vu:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+                task.wait(1)
+                vu:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+                print("Anti-AFK triggered VirtualUser input.")
+                task.wait(600)
+            end
+        end)
+    end)
+end
+
+function autoCraftPotions() 
+    potionTypes = {"Lucky", "Speed", "Mythic", "Coins"}
+
+    for _, potion in potionTypes do
+        for i = 2, 5 do
+            local args = {
+                [1] = "CraftPotion";
+                [2] = potion;
+                [3] = i;
+                [4] = true;
+            }
+            game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Framework"):WaitForChild("Network"):WaitForChild("Remote"):WaitForChild("Event"):FireServer(unpack(args))
+            task.wait(0.25)
+        end
+    end
+
+    taskStates["Auto Craft Potions"] = false
+    local ref = buttonMap["Auto Craft Potions"]
+    if ref then
+        ref.checkmark.Visible = false
+    end
+end
+
+
+function autoBuyAlienShop()
+    task.spawn(function()
+        while taskStates["Buy Alien Shop"] do
+            for i = 1, 3 do
+                local args = {
+                    [1] = "BuyShopItem";
+                    [2] = "alien-shop";
+                    [3] = i;
+                }
+                game:GetService("ReplicatedStorage"):WaitForChild("Shared", 9e9):WaitForChild("Framework", 9e9):WaitForChild("Network", 9e9):WaitForChild("Remote", 9e9):WaitForChild("Event", 9e9):FireServer(unpack(args))
+                task.wait(0.1)
+            end
+            task.wait(1)
+        end
+    end)
+end
+
+function autoBuyBlackmarketShop()
+    task.spawn(function()
+        while taskStates["Buy Blackmarket Shop"] do
+            for i = 1, 3 do
+                local args = {
+                    [1] = "BuyShopItem",
+                    [2] = "shard-shop",
+                    [3] = i
+                }
+                
+                game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Framework"):WaitForChild("Network"):WaitForChild("Remote"):WaitForChild("Event"):FireServer(unpack(args))
+                task.wait(0.1)
+            end
+
+            task.wait(1)
+        end
+    end)
+end
+
+function claimPlaytimeRewards()
+    task.spawn(function()
+        while taskStates["Claim Playtime Rewards"] do
+            for i=1, 9 do 
+                local args = {
+                    [1] = "ClaimPlaytime";
+                    [2] = i;
+                }
+                
+                game:GetService("ReplicatedStorage"):WaitForChild("Shared", 9e9):WaitForChild("Framework", 9e9):WaitForChild("Network", 9e9):WaitForChild("Remote", 9e9):WaitForChild("Function", 9e9):InvokeServer(unpack(args))
+            end
+
+        task.wait(10)
+        end
+    end)
+end
+
+function claimSpinwheel()
+    task.spawn(function()
+        while taskStates["Claim Spinwheel"] do
+            local args = {
+                [1] = "ClaimFreeWheelSpin";
+            }
+            
+            game:GetService("ReplicatedStorage"):WaitForChild("Shared", 9e9):WaitForChild("Framework", 9e9):WaitForChild("Network", 9e9):WaitForChild("Remote", 9e9):WaitForChild("Event", 9e9):FireServer(unpack(args))
+
+            task.wait(10)
+        end
+    end)
+end
+
+function autoDoggyJump()
+    task.spawn(function()
+        while taskStates["Auto Doggy Jump"] do
+            for i = 1, 3 do
+                local args = {
+                    [1] = "DoggyJumpWin",
+                    [2] = i
+                }
+            
+                game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Framework"):WaitForChild("Network"):WaitForChild("Remote"):WaitForChild("Event"):FireServer(unpack(args))
+                task.wait(5)
+            end
+            task.wait(10)
+        end
+    end)
+end
+
+local httprequest = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
+local HttpService = game:GetService("HttpService")
+
+local avatarCache = {}
+
+function sendWebHook(webhook, message, embed)
+    if not httprequest or not webhook then 
+        print("Failed to do sth")
+        return 
+    end
+    local player = game:GetService("Players").LocalPlayer
+
+    local userId = player.UserId
+    local username = player.Name .. " | " .. tostring(userId)
+    
+    local avatarUrl = avatarCache[userId]
+    if not avatarUrl then
+        local success, result = pcall(function()
+            local response = httprequest({
+                Url = "https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=" .. userId .. "&size=420x420&format=Png&isCircular=false",
+                Method = "GET"
+            })
+            local data = HttpService:JSONDecode(response.Body).data
+            if data and data[1] and data[1].state == "Completed" then
+                avatarUrl = data[1].imageUrl
+                avatarCache[userId] = avatarUrl
+            end
+        end)
+        if not success then
+            avatarUrl = "https://tr.rbxcdn.com/6c881fc4fc79802c012cb82a689e84e0/420/420/AvatarHeadshot/Png"
+        end
+    end
+
+    local payload = {
+        username = username,
+        avatar_url = avatarUrl,
+        allowed_mentions = { parse = {} }
+    }
+
+    if message then
+        payload.content = message
+    end
+
+    if embed then
+        payload.embeds = { embed }
+    end
+
+    httprequest({
+        Url = webhook,
+        Method = "POST",
+        Headers = {
+            ["Content-Type"] = "application/json"
+        },
+        Body = HttpService:JSONEncode(payload)
+    })
+end
+
+function createPetHatchEmbed(petName, hatchRarity, imageUrl, bubbleCount, eggCount, hexColor)
+    local descriptionText = ""
+    local raw = hatchRarity:gsub("%%", "")
+    local numberRarity = tonumber(raw)
+    local oddsText = ""
+    if numberRarity and numberRarity > 0 then
+        local odds = math.floor(100 / numberRarity + 0.5)
+        oddsText = string.format("(~1 in %s)", string.format("%0.f", odds):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", ""))
+    end
+    local hatchRarityText =  hatchRarity .. "`" .. oddsText .. "`" .."\n"
+
+    local bubbleText = ""
+    if bubbleCount then
+        bubbleText = string.format("`%s` bubbles", bubbleCount) .. "\n"
+    end
+
+    local eggText = ""
+    if eggCount then
+        eggText = string.format("`%s` eggs", eggCount) .. "\n"
+    end
+
+    local herbPing = "<@1156652504185053294>"
+
+    print("Egg Count:", eggCount)
+    print("Bubble Count:", bubbleCount)
+    print("Bubble Text:", bubbleText)
+    print("Egg Text:", eggText)
+    print("Hatch Rarity Text:", hatchRarityText)
+
+    descriptionText = descriptionText .. hatchRarityText .. bubbleText .. eggText .. herbPing
+    local embed = {
+        title = petName,
+        description = descriptionText,
+        color = hexColor,
+        thumbnail = imageUrl and { url = imageUrl } or nil,
+        footer = {
+            text = "Praise to Steinebeisser"
+        },
+        timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+        }
+    return embed
+end
+
+function getAssetUrl(assetId)
+    local url = "https://thumbnails.roblox.com/v1/assets?assetIds=" .. assetId .. "&size=420x420&format=Png&isCircular=false"
+    local response = httprequest({
+        Url = url,
+        Method = "GET"
+    })
+
+    print("RESPONSE:", response.Body)
+
+    local data = HttpService:JSONDecode(response.Body)
+    
+    if data and data.data and data.data[1] and data.data[1].imageUrl then
+        return data.data[1].imageUrl
+    end
+
+    return nil
+end
+
+function logChildren(parent, indent)
+    indent = indent or ""  
+    for _, child in pairs(parent:GetChildren()) do
+        print(indent .. child.Name .. " (Type: " .. child.ClassName .. ")")
+        if #child:GetChildren() > 0 then
+            logChildren(child, indent .. "  ")  
+        end
+    end
+end
+
+function getEggCount()
+    local player = game:GetService("Players").LocalPlayer
+    local eggCount = player:WaitForChild("leaderstats"):WaitForChild("🥚 Hatches").Value
+    return tonumber(eggCount)
+end
+
+function getBubbleCount()
+    local player = game:GetService("Players").LocalPlayer
+    local bubbleCount = player:WaitForChild("leaderstats"):WaitForChild("🟣 Bubbles").Value
+    return tonumber(bubbleCount)
+end
+
+local originalState = {}
+
+function storeObjectStates(object)
+    if (object:IsA("BasePart")) then
+        originalState[object] = {
+            CanCollide = object.CanCollide,
+        }
+    end
+
+    for _, child in pairs(object:GetChildren()) do
+        storeObjectStates(child)
+    end
+end
+
+
+function enableNoClip(object)
+    if (object:IsA("BasePart")) then
+        object.CanCollide = false
+    end 
+
+    for _, child in pairs(object:GetChildren()) do
+        enableNoClip(child)
+    end
+end
+
+function restoreNoClip()
+    for object, state in pairs(originalState) do
+        object.CanCollide = state.CanCollide
+    end
+    originalState = {}
+end
+
+local isToggleNoClipEnabled = false
+
+function startNoClip()
+    task.spawn(function()
+        storeObjectStates(workspace)
+        enableNoClip(workspace)
+    end)
+end
+
+function endNoClip()
+    restoreNoClip()
+end
+
+function toggleNoClip()
+    task.spawn(function()
+        isToggleNoClipEnabled = not isToggleNoClipEnabled
+        if isToggleNoClipEnabled then
+            startNoClip()
+        else
+            restoreNoClip()
+        end
+    end)
+end
+
+function noClip()
+    toggleNoClip()
+    taskStates["No Clip"] = false
+    local ref = buttonMap["No Clip"]
+    if ref then
+        ref.checkmark.Visible = isToggleNoClipEnabled
+    end
+end
+
+local isLightNoClipEnabled = false
+
+local originalLightState = {}
+
+function storeLightObjectStates(object)
+    if (object:IsA("BasePart")) then
+        originalLightState[object] = {
+            CanCollide = object.CanCollide,
+        }
+    end
+
+    for _, child in pairs(object:GetChildren()) do
+        storeLightObjectStates(child)
+    end
+end
+
+function enableLightNoClip(object)
+    if object.Name == "Ground" or object.Name == "Islands" then
+        return
+    end
+    if (object:IsA("BasePart")) then
+        object.CanCollide = false
+    end 
+
+    for _, child in pairs(object:GetChildren()) do
+        enableLightNoClip(child)
+    end
+end
+
+function startLightNoClip()
+    task.spawn(function()
+        storeLightObjectStates(workspace)
+        enableLightNoClip(workspace)
+    end)
+end
+
+function restoreLightNoClip()
+    for object, state in pairs(originalLightState) do
+        object.CanCollide = state.CanCollide
+    end
+    originalLightState = {}
+end
+
+function toggleLightNoClip()
+    task.spawn(function()
+        isLightNoClipEnabled = not isLightNoClipEnabled
+        if isLightNoClipEnabled then
+            startLightNoClip()
+        else
+            restoreLightNoClip()
+        end
+    end)
+end
+
+function lightNoClip()
+    toggleLightNoClip()
+    taskStates["Light No Clip"] = false
+    local ref = buttonMap["Light No Clip"]
+    if ref then
+        ref.checkmark.Visible = isLightNoClipEnabled
+    end
+end
+
+
+function sendHatchWebhook()
+    task.spawn(function()
+        local player = game:GetService("Players").LocalPlayer
+        local lastHatching = player:WaitForChild("PlayerGui"):WaitForChild("ScreenGui"):WaitForChild("Hatching"):WaitForChild("Last")
+        local newHatch = true;
+        
+        local function trackSlot(slot)
+            local function markAsNew()
+                newHatch = true
+            end
+        
+            slot:GetPropertyChangedSignal("Name"):Connect(markAsNew)
+        
+            local chance = slot:FindFirstChild("Chance")
+            if chance and chance:IsA("TextLabel") then
+                chance:GetPropertyChangedSignal("ContentText"):Connect(markAsNew)
+            end
+        end
+
+        for _, child in ipairs(lastHatching:GetChildren()) do
+            if child:IsA("GuiObject") then
+                trackSlot(child)
+            end
+        end
+        
+        lastHatching.ChildAdded:Connect(function(child)
+            if child:IsA("GuiObject") then
+                trackSlot(child)
+                newHatch = true
+            end
+        end)
+        
+        local rarityThreshold = 0.002
+        local webhook = "https://discord.com/api/webhooks/1362564811380228306/WrVSHzYpAvk0ufBaaMak0SLRuhuojXehNBuGJMRYAQFav6ksx6CJQwU6urHI2zbTuxRn"
+
+        while taskStates["Hatch Webhook"] do
+            if newHatch then
+                for _, hatch in pairs(lastHatching:GetChildren()) do
+                    if hatch:IsA("GuiObject") and hatch.Name ~= "Title" then
+                        local hatchRarity = hatch:FindFirstChild("Chance").ContentText
+                        local raw = hatchRarity:gsub("%%", "")
+                        local numberRarity = tonumber(raw)
+                        if numberRarity <= rarityThreshold then
+                            print("Number Rarity:", numberRarity)
+                            print("Rare Pet Dropped: " .. hatch.Name .. " (" .. hatchRarity .. ")")
+                            local assetID = hatch:FindFirstChild("Icon"):FindFirstChild("Label").Image:split("rbxassetid://")[2]
+
+                            local eggCount = getEggCount()
+                            local bubbleCount = getBubbleCount()
+                            local textColor = hatch:FindFirstChild("Label").TextColor3
+                            local r = math.floor(textColor.R * 255)
+                            local g = math.floor(textColor.G * 255)
+                            local b = math.floor(textColor.B * 255)
+                            local hexColor = r * 256^2 + g * 256 + b
+
+                            if r == 0xFF and g >= 0x70 and g <= 0xe0 and b >= 0x00 and b <= 0x0b then
+                                hexColor = 0xFFBE00 -- SHINY
+                            elseif r >= 0x45 and r <= 0xef and g >= 0x00 and g <= 0x30 and b == 0xFF then
+                                hexColor = 0xC30CFF -- MYTHIC
+                            else 
+                                hexColor = 0xFFFFFF -- WANDOM
+                            end 
+                        
+                            sendWebHook(webhook, nil, createPetHatchEmbed(hatch.Name, hatchRarity, getAssetUrl(assetID), bubbleCount, eggCount, hexColor))
+                        end
+                    end
+                end
+                newHatch = false
+            end
+            task.wait(0.1)
+        end
+    end)
+end
+
+function useTickets()
+    task.spawn(function()
+        while taskStates["Use Tickets"] do
+
+            local args = {
+                [1] = "WheelSpin";
+            }
+
+            game:GetService("ReplicatedStorage"):WaitForChild("Shared", 9e9):WaitForChild("Framework", 9e9):WaitForChild("Network", 9e9):WaitForChild("Remote", 9e9):WaitForChild("Function", 9e9):InvokeServer(unpack(args))
+
+            local args = {
+                [1] = "ClaimWheelSpinQueue";
+            }
+
+            game:GetService("ReplicatedStorage"):WaitForChild("Shared", 9e9):WaitForChild("Framework", 9e9):WaitForChild("Network", 9e9):WaitForChild("Remote", 9e9):WaitForChild("Event", 9e9):FireServer(unpack(args))
+            
+            task.wait(0.1)
+        end
+    end)
+end
+
+function openMysteryGift(giftAmount)
+    task.spawn(function()
+        while taskStates["Myster Gift"] do
+            openGifts(giftAmount)
+
+            task.wait(0.1)
+        end
+    end)
+end
+
+function autoCollectCoins() 
+    task.spawn(function()
+        while taskStates["Auto Collect Coins"] do
+            local renderedStorage = Workspace:WaitForChild("Rendered")
+
+            for _, folder in pairs(renderedStorage:getChildren()) do
+                if folder.Name == "Chunker" then
+                    for _, chunker in pairs(folder:getChildren()) do
+                        if (chunker:IsA("Model")) and chunker.Name:match("%x%-") then
+                            local args = {
+                                [1] = chunker.Name
+                            }
+                        
+                            game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Pickups"):WaitForChild("CollectPickup"):FireServer(unpack(args))
+                            chunker:Destroy()
+                        end
+                    end
+                end
+            end
+
+            task.wait(1)
+        end
+    end)
+end
+
+local genieOldPos
+local isOpenGenie = false
+function openGenieMenu()
+    taskStates["Open Genie Menu"] = false
+    local genieRoot = workspace:WaitForChild("Worlds"):WaitForChild("The Overworld"):WaitForChild("Islands"):WaitForChild("Zen"):WaitForChild("Island"):WaitForChild("GemGenie"):WaitForChild("Root")
+
+    if isOpenGenie then
+        genieRoot.CFrame = genieOldPos
+        isOpenGenie = false
+        local ref = buttonMap["Open Genie Menu"]
+        if ref then
+            ref.checkmark.Visible = false
+        end
+        return
+    end
+
+    local player =game.Players.localPlayer
+    local name = player.Name
+
+    local cframePos = workspace:WaitForChild(name):WaitForChild("HumanoidRootPart").CFrame
+
+    genieOldPos = genieRoot.CFrame
+
+    genieRoot.CFrame = cframePos
+    isOpenGenie = true
+end
+
+local enchanterOldPos
+local isOpenEnchanter = false
+function openEnchanterMenu()
+    taskStates["Open enchanter"] = false
+    local enchanterRoot = workspace:WaitForChild("Worlds"):WaitForChild("The Overworld"):WaitForChild("Islands"):WaitForChild("The Void"):WaitForChild("Island"):WaitForChild("EnchanterActivation"):WaitForChild("Root")
+
+    if isOpenEnchanter then
+        enchanterRoot.CFrame = enchanterOldPos
+        isOpenEnchanter = false
+        local ref = buttonMap["Open enchanter"]
+        if ref then
+            ref.checkmark.Visible = false
+        end
+        return
+    end 
+
+    local player =game.Players.localPlayer
+    local name = player.Name
+
+    local cframePos = workspace:WaitForChild(name):WaitForChild("HumanoidRootPart").CFrame
+
+    enchanterOldPos = enchanterRoot.CFrame
+
+    enchanterRoot.CFrame = cframePos
+    isOpenEnchanter = true
+end
+
+
+local blackmarkedOldPos
+local isOpenBlack = false
+function openBlackmarkedMenu()
+    taskStates["Open Blackmarked"] = false
+    local blackmarkedRoot = workspace:WaitForChild("Worlds"):WaitForChild("The Overworld"):WaitForChild("Islands"):WaitForChild("The Void"):WaitForChild("Island"):WaitForChild("Vendor"):WaitForChild("Activation"):WaitForChild("Root")
+
+    if isOpenBlack then
+        blackmarkedRoot.CFrame = blackmarkedOldPos
+        isOpenBlack = false
+        local ref = buttonMap["Open Blackmarked"]
+        if ref then
+            ref.checkmark.Visible = false
+        end
+        return
+    end 
+    
+    local player =game.Players.localPlayer
+    local name = player.Name
+
+    local cframePos = workspace:WaitForChild(name):WaitForChild("HumanoidRootPart").CFrame
+
+    blackmarkedOldPos = blackmarkedRoot.CFrame
+
+    blackmarkedRoot.CFrame = cframePos
+    isOpenBlack = true
+end
+
+function moveHumanTo(humanoid, targetPoint, part)
+	local targetReached = false
+
+	-- listen for the humanoid reaching its target
+	local connection
+	connection = humanoid.MoveToFinished:Connect(function(reached)
+		targetReached = true
+		connection:Disconnect()
+		connection = nil
+	end)
+
+    local root = game.Players.LocalPlayer.Character.HumanoidRootPart
+	-- start walking
+	humanoid:MoveTo(targetPoint)
+
+	-- execute on a new thread so as to not yield function
+    while not targetReached do
+        -- does the humanoid still exist?
+        if not (humanoid and humanoid.Parent) then
+            break
+        end
+        -- has the target changed?
+        if humanoid.WalkToPoint ~= targetPoint then
+            break
+        end
+        -- refresh the timeout
+        humanoid:MoveTo(targetPoint)
+        if part then 
+            local newPartPosition = Vector3.new(root.Position.X, part.Position.Y, root.Position.Z)
+            part.Position = newPartPosition
+        end
+        task.wait(0.1)
+    end
+
+    -- disconnect the connection if it is still connected
+    if connection then
+        connection:Disconnect()
+        connection = nil
+    end
+end
+
+local function andThen(reached)
+	print((reached and "Destination reached!") or "Failed to reach destination!")
+end
+
+
+function moveToPos(position, taskStateName)
+    local root = game.Players.LocalPlayer.Character.HumanoidRootPart
+    local playerPos = root.Position
+    print("MOVING FROM ", playerPos, " TO ", position)
+    
+    position = position + Vector3.new(0, 10, 0)
+
+    local models = workspace:WaitForChild("Stages"):FindFirstChild("Model")
+    if not models then
+        print("Model not found")
+        return
+    end
+
+    local part = models:FindFirstChild("Part")
+    if not part then
+        print("Part not found")
+        return
+    end
+
+    part.Position = root.Position - Vector3.new(0, 3, 0)
+    startNoClip()
+    part.CanCollide = true
+    local moveSpeedPoggers = 10
+    local updateTime = 1
+    local moveSpeed = moveSpeedPoggers
+    local finishedMove = false
+
+    local toTarget = position - part.Position
+    local distance = toTarget.Magnitude
+    if (distance < 1500) then
+        moveSpeed = moveSpeedPoggers / 1.5
+    end
+    if (distance < 1000) then
+        moveSpeed = moveSpeedPoggers / 2
+    end
+    if (distance < 500) then
+        moveSpeed = moveSpeedPoggers / 3
+    end
+    if (distance < 100) then
+        moveSpeed = moveSpeedPoggers / 5
+    end
+
+    task.spawn(function()
+        local slowedDown = false
+        print("Moving to Position:", position, " taskStateName:", taskStateName)
+        -- while taskStates[taskStateName] do
+        --     local toTarget = position - part.Position
+        --     local distance = toTarget.Magnitude
+
+        --     if distance < 300 and not slowedDown then
+        --         slowedDown = true
+        --         moveSpeed = 2
+        --     end
+        --     if distance - moveSpeed <= 0 then
+        --         finishedMove = true
+        --     end
+
+        --     local direction = toTarget.Unit
+        --     part.Position = part.Position + moveSpeed * direction
+        --     root.CFrame = part.CFrame -- + Vector3.new(0, 0, 0)
+
+        --     task.wait(0.01)
+        --     
+        --     if finishedMove then
+        --         print("Finished moving to Position:", position)
+        --         moveSpeed = moveSpeedPoggers
+        --         task.wait(1)
+        --         part.Position = Vector3.new(0, 0, 0)
+        --         break
+        --     end
+        -- end
+        while math.abs(root.Position.Y - position.Y) > moveSpeed do
+            local directionY = position.Y - root.Position.Y > 0 and 1 or -1
+            part.Position = part.Position + Vector3.new(0, directionY * moveSpeed, 0)
+            root.CFrame = part.CFrame + Vector3.new(0, 5, 0)
+            task.wait(0.01)
+        end
+
+        --local notArrived = true
+        --while notArrived do
+        --    local toTarget = position - part.Position
+        --    local distance = toTarget.Magnitude
+        --    if distance - moveSpeed <= 0 then
+        --        notArrived = false
+        --    end
+
+        --    local direction = toTarget.Unit
+        --    part.Position = part.Position + moveSpeed * direction
+        --    rout.CFrame = part.CFrame + Vector3.new(0, 0, 0)+ 
+
+        --    task.wait(0.01)
+        --end
+        local meHumanoid = game.Players.LocalPlayer.Character.Humanoid
+        moveHumanTo(meHumanoid, position, part)
+        print("Finished moving to Position:", position)
+
+        moveSpeed = moveSpeedPoggers
+        endNoClip()
+        part.Position = Vector3.new(0, 0, 0)
+    end)
+end
+
+
+function walkToPos(position)
+    local meHumanoid = game.Players.LocalPlayer.Character.Humanoid
+    moveHumanTo(meHumanoid, position)
+end
+
+local extraIslands = {
+    { Name = "Spawn", Position = Vector3.new(-0.8327484130859375, 9.823179244995117, -21.460800170898438) },
+    { Name = "[Event] Easter Island", Position = Vector3.new(-393.50921630859375, 12015.1982421875, 149.67340087890625) },
+}
+
+local isExtraIsland = false
+
+local function getNearestIsland(position)
+    local islandsFolder = workspace:WaitForChild("Worlds"):WaitForChild("The Overworld"):WaitForChild("Islands")
+    local nearestIsland
+    local nearestIslandPosition = Vector3.new(0, 0, 0)
+
+    for _, island in pairs(islandsFolder:GetChildren()) do
+        local islandStats = island:WaitForChild("Island")
+        local islandPivot = islandStats:GetPivot()
+        local islandPosition = islandPivot.Position
+        local distance = (position - islandPosition).Magnitude
+
+        if not nearestIsland or distance < (position - nearestIslandPosition).Magnitude then
+            nearestIsland = island
+            nearestIslandPosition = islandPosition
+            isExtraIsland = false
+        end
+
+        print("Island:", island.Name, "Distance:", distance, "Valid:", position.Y > islandPosition.Y)
+    end
+
+    for _, extraIsland in pairs(extraIslands) do
+        local distance = (position - extraIsland.Position).Magnitude
+        if not nearestIsland or distance < (position - nearestIslandPosition).Magnitude then
+            nearestIsland = extraIsland
+            nearestIslandPosition = extraIsland.Position
+            isExtraIsland = true
+        end
+    end
+
+    return nearestIsland
+end
+
+local function teleportToIsland(island)
+    if island.Name == "Spawn" then
+        local args = {
+            [1] = "Teleport",
+            [2] = "Workspace.Worlds.The Overworld.FastTravel.Spawn"
+        }
+        
+        game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Framework"):WaitForChild("Network"):WaitForChild("Remote"):WaitForChild("Event"):FireServer(unpack(args))        
+        return
+    elseif island.Name == "[Event] Easter Island" then
+        local args = {
+            [1] = "Teleport",
+            [2] = "Workspace.Event.Portal.Spawn"
+        }
+            
+        game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Framework"):WaitForChild("Network"):WaitForChild("Remote"):WaitForChild("Event"):FireServer(unpack(args))
+        return
+    end
+
+    local args = {
+        [1] = "Teleport";
+        [2] = "Workspace.Worlds.The Overworld.Islands." .. island.Name .. ".Island.Portal.Spawn";
+    }
+
+    game:GetService("ReplicatedStorage"):WaitForChild("Shared", 9e9):WaitForChild("Framework", 9e9):WaitForChild("Network", 9e9):WaitForChild("Remote", 9e9):WaitForChild("Event", 9e9):FireServer(unpack(args))
+end
+
+
+function moveToEgg(egg, taskStateName)
+    moveToPos(egg, taskStateName)
+end
+
+
+
+-- for _, egg in pairs(eggPositions) do
+--     createCheckbox(egg.displayName .. egg.position.Y, false, function()
+--         local nearestIsland = getNearestIsland(egg.position)
+--         local root = game.Players.LocalPlayer.Character.HumanoidRootPart
+--         print("Nearest Island:", nearestIsland)
+--         local playerDistance = (egg.position - root.Position).Magnitude
+--         print("Player Distance:", playerDistance)
+--         if isExtraIsland then
+--             print("Is Extra Island")
+--             print("ISLAND DISTANCE:", (nearestIsland.Position - egg.position).Magnitude)
+--             print("Island displayName:", nearestIsland.displayName)
+--             if (nearestIsland.Position - egg.position).Magnitude < playerDistance then
+--                 print("Teleporting to island...")
+--                 teleportToIsland(nearestIsland)
+--                 task.wait(2)
+--                 moveToEgg(egg.position, egg.displayName .. egg.position.Y)
+--             else
+--                 moveToEgg(egg.position, egg.displayName .. egg.position.Y)
+--                 print("ALIVE")
+--             end
+--         else
+--             if (nearestIsland:WaitForChild("Island"):GetPivot().Position - egg.position).Magnitude < playerDistance then
+--                 print("Teleporting to Island")
+--                 teleportToIsland(nearestIsland)
+--                 task.wait(2)
+--                 moveToEgg(egg.position, egg.displayName .. egg.position.Y)
+--             else 
+--                 moveToEgg(egg.position, egg.displayName .. egg.position.Y)
+--                 print("ALIVE")
+--             end
+--         end
+--     end, egg.displayName)
+-- end
+
+
+local riftsFolder = workspace.Rendered:WaitForChild("Rifts")
+
+
+local function getLuckMultiplier(rift)
+
+    
+    local display = rift:FindFirstChild("Display")
+    if not display then return nil end
+
+    local surfaceGui = display:FindFirstChild("SurfaceGui")
+    if not surfaceGui then return nil end
+
+    local icon = surfaceGui:FindFirstChild("Icon")
+    if not icon then return nil end
+
+    local luck = icon:FindFirstChild("Luck")
+    if luck and luck:IsA("TextLabel") then
+        return luck.Text
+    end
+
+    return nil
+end
+
+local function setJumpPower(power)
+    local player = game.Players.LocalPlayer
+    local humanoid = workspace:WaitForChild(player.Name).Humanoid
+    humanoid.JumpPower = power
+    humanoid.JumpHeight = power
+end
+
+function getNearestEggName(position) 
+    local renderedStorage = Workspace:WaitForChild("Rendered")
+    local nearestEgg
+
+    for _, folder in pairs(renderedStorage:getChildren()) do
+        if folder.Name == "Chunker" then
+            for _, chunker in pairs(folder:getChildren()) do
+                if (chunker:IsA("Model")) then
+                    -- print("Chunker Name:", chunker.Name)
+                    local chunkerPos = chunker:GetPivot().Position
+                    local distance = (position - chunkerPos).Magnitude
+                    if not nearestEgg or distance < (position - nearestEgg:GetPivot().Position).Magnitude then
+                        nearestEgg = chunker
+                    end
+                end
+            end
+        end
+    end
+
+    if not nearestEgg then 
+        return nil 
+    end
+
+    return nearestEgg.Name
+end
+
+function hatchNearestEgg(nearestEgg)
+    -- print("Hatching Egg:", nearestEgg)
+    local args = {
+        [1] = "HatchEgg";
+        [2] = nearestEgg;
+        [3] = 6;
+    }
+
+    game:GetService("ReplicatedStorage"):WaitForChild("Shared", 9e9):WaitForChild("Framework", 9e9):WaitForChild("Network", 9e9):WaitForChild("Remote", 9e9):WaitForChild("Event", 9e9):FireServer(unpack(args))
+
+    task.wait(0.3)
+end
+
+function fastHatchNearestEgg()
+    task.spawn(function()
+        while taskStates["Fast Hatch"] do
+            local nearestEgg = getNearestEggName(game.Players.LocalPlayer.Character.HumanoidRootPart.Position)
+            hatchNearestEgg(nearestEgg)
+        end
+    end)
+end
+
+
+function hatchEgg(rift)
+    -- print("HATCHING EGG, RIFT:", rift:GetPivot().Position.Y)
+    -- print("TRUE", taskStates["Auto Hatch Rifts"])
+    -- print("TRUE", currentIsland == rift)
+    task.spawn(function()
+        while taskStates["Auto Hatch Rifts"] and currentIsland == rift do
+            local nearestEgg = getNearestEggName(rift:GetPivot().Position)
+            hatchNearestEgg(nearestEgg)
+        end
+    end)
+end
+
+
+local oldPlay 
+local isHatchingAnimationEnabled = false
+local gotOldPlay = false
+function removeHatchAnimation()
+    local HatchEgg = require(game.ReplicatedStorage.Client.Effects.HatchEgg)
+    if not gotOldPlay then
+        oldPlay = HatchEgg.Play
+        gotOldPlay = true
+    end
+    isHatchingAnimationEnabled = not isHatchingAnimationEnabled
+    if isHatchingAnimationEnabled then
+
+        HatchEgg.Play = function(self, data)
+            self._hatching = true
+            -- print("Hatched one")
+        
+            task.spawn(function()
+                task.wait(0.01)
+                self._hatching = false
+            end)
+        
+        end
+    else
+        HatchEgg.Play = oldPlay
+    end
+
+    taskStates["Remove Hatch Animation"] = false
+    local ref = buttonMap["Remove Hatch Animation"]
+    if ref then
+        ref.checkmark.Visible = isHatchingAnimationEnabled
+    end
+end
+
+local function moveToRift(rift)
+    local pivot = rift:GetPivot()
+    local player = game.Players.LocalPlayer.Character.HumanoidRootPart
+    
+    print("Moving to Rift:", rift.Name, "Position:", pivot.Position)
+    local nearestIsland = getNearestIsland(pivot.Position)
+    teleportToIsland(nearestIsland)
+    task.wait(2)
+    moveToPos(rift:GetPivot().Position, "Rift: " .. rift:GetPivot().Position.Y)
+end
+
+function getRiftTimer(rift)
+    local timer = rift:WaitForChild("Display", 1):WaitForChild("SurfaceGui", 1):WaitForChild("Timer", 1).ContentText
+    return timer
+end
+
+function riftTimer(rift) 
+    local height = rift:GetPivot().Position.Y
+    local multiplier = getLuckMultiplier(rift)
+    task.spawn(function()
+        local baseName = "Rift: " .. rift.Name
+        if multiplier then
+            baseName = baseName .. " " .. multiplier
+        end
+        print("Starting timer for", baseName)
+        while buttonMap["Rift: " .. height] do
+            local timer = getRiftTimer(rift)
+            buttonMap["Rift: " .. height].label.Text = baseName .. "    -   [" .. timer .. "]" 
+            task.wait(1)
+        end
+    end)
+end
+
+function moveToHardEgg(position, eggDisplayName)
+    if not position then 
+        print("MoveToEgg position is nil")
+        return 
+    end
+    if not eggDisplayName then 
+        print("MoveToEgg eggDisplayName is nil")
+        return 
+    end
+    -- print("MOVING TO EGG")
+    local nearestIsland = getNearestIsland(position)
+    local root = game.Players.LocalPlayer.Character.HumanoidRootPart
+    -- print("Nearest Island:", nearestIsland)
+    local playerDistance = (position - root.Position).Magnitude
+    -- print("Player Distance:", playerDistance)
+    if isExtraIsland then
+        -- print("Is Extra Island")
+        -- print("ISLAND DISTANCE:", (nearestIsland.Position - position).Magnitude)
+        -- print("Island Name:", nearestIsland.Name)
+        if (nearestIsland.Position - position).Magnitude < playerDistance then
+            -- print("Teleporting to island...")
+            teleportToIsland(nearestIsland)
+            task.wait(2)
+            moveToEgg(position, eggDisplayName .. position.Y)
+        else
+            moveToEgg(position, eggDisplayName .. position.Y)
+            -- print("ALIVE")
+        end
+    else
+        if (nearestIsland:WaitForChild("Island"):GetPivot().Position - position).Magnitude < playerDistance then
+            -- print("Teleporting to Island")
+            teleportToIsland(nearestIsland)
+            task.wait(2)
+            moveToEgg(position, eggDisplayName .. position.Y)
+        else 
+            moveToEgg(position, eggDisplayName .. position.Y)
+            -- print("ALIVE")
+        end
+    end
+end
+
+local eggPositionsEggFarm = {
+    { displayName = "[Event] 100M Egg", name = "100m-egg", position = Vector3.new(17.14812469482422, 10.15925121307373, -3.9271082878112793) },
+    { displayName = "[Event] Throwback Egg", name = "event-3", position = Vector3.new(-127.79013061523438, 10.743536949157715, -59.448570251464844) },
+    { displayName = "Common Egg", name = "common-egg", position = Vector3.new(-83.8525619506836, 10.743536949157715, 3.0177695751190186) },
+    { displayName = "Spotted Egg", name = "spotted-egg", position = Vector3.new(-93.11441040039062, 10.743536949157715, 8.814620018005371) },
+    { displayName = "Iceshard Egg", name = "iceshard-egg", position = Vector3.new(-118.06690979003906, 10.743536949157715, 9.143298149108887) },
+    { displayName = "Spikey Egg", name = "spikey-egg", position = Vector3.new(-126.07728576660156, 10.743536949157715, 4.675696849822998) },
+    { displayName = "Magma Egg", name = "magma-egg", position = Vector3.new(-133.72926330566406, 10.74340534210205, -0.26362869143486023) },
+    { displayName = "Crystal Egg", name = "crystal-egg", position = Vector3.new(-140.73500061035156, 10.743536949157715, -6.725001811981201) },
+    { displayName = "Lunar Egg", name = "lunar-egg", position = Vector3.new(-144.6551055908203, 10.743497848510742, -16.392690658569336) },
+    { displayName = "Void Egg", name = "void-egg", position = Vector3.new(-146.36843872070312, 10.743481636047363, -26.53530502319336) },
+    { displayName = "Hell Egg", name = "hell-egg", position = Vector3.new(-146.16233825683594, 11.007079124450684, -36.484493255615234) },
+    { displayName = "Nightmare Egg", name = "nightmare-egg", position = Vector3.new(-142.4998779296875, 10.743536949157715, -45.75666809082031) },
+    { displayName = "Rainbow Egg", name = "rainbow-egg", position = Vector3.new(-136.40321350097656, 10.743244171142578, -53.37372970581055) },
+}
+
+local competitiveTasksList = {
+    { taskDescription = "Hatch 250 Common Eggs", todo = "Hatch", egg = "common-egg", priority = 1, task , autoReroll = 0},
+    { taskDescription = "Hatch 250 Spotted Eggs", todo = "Hatch", egg = "spotted-egg", priority = 1, task , autoReroll = 0},
+    { taskDescription = "Hatch 250 Iceshard Eggs", todo = "Hatch", egg = "iceshard-egg", priority = 1, task , autoReroll = 0},
+    { taskDescription = "Hatch 250 Spikey Eggs", todo = "Hatch", egg = "spikey-egg", priority = 1, task , autoReroll = 0},
+    { taskDescription = "Hatch 250 Magma Eggs", todo = "Hatch", egg = "magma-egg", priority = 1, task , autoReroll = 0},
+    { taskDescription = "Hatch 250 Crystal Eggs", todo = "Hatch", egg = "crystal-egg", priority = 1, task , autoReroll = 0},
+    { taskDescription = "Hatch 250 Lunar Eggs", todo = "Hatch", egg = "lunar-egg", priority = 1, task , autoReroll = 0},
+    { taskDescription = "Hatch 250 Void Eggs", todo = "Hatch", egg = "void-egg", priority = 1, task , autoReroll = 0},
+    { taskDescription = "Hatch 250 Hell Eggs", todo = "Hatch", egg = "hell-egg", priority = 1, task , autoReroll = 0},
+    { taskDescription = "Hatch 250 Nightmare Eggs", todo = "Hatch", egg = "nightmare-egg", priority = 1, task , autoReroll = 0},
+    { taskDescription = "Hatch 250 Rainbow Eggs", todo = "Hatch", egg = "rainbow-egg", priority = 1, task , autoReroll = 0},
+
+
+    { taskDescription = "Hatch 450 Common Eggs", todo = "Hatch", egg = "common-egg", priority = 2, task , autoReroll = 0},
+    { taskDescription = "Hatch 450 Spotted Eggs", todo = "Hatch", egg = "spotted-egg", priority = 2, task , autoReroll = 0},
+    { taskDescription = "Hatch 450 Iceshard Eggs", todo = "Hatch", egg = "iceshard-egg", priority = 2, task , autoReroll = 0},
+    { taskDescription = "Hatch 450 Spikey Eggs", todo = "Hatch", egg = "spikey-egg", priority = 2, task , autoReroll = 0},
+    { taskDescription = "Hatch 450 Magma Eggs", todo = "Hatch", egg = "magma-egg", priority = 2, task , autoReroll = 0},
+    { taskDescription = "Hatch 450 Crystal Eggs", todo = "Hatch", egg = "crystal-egg", priority = 2, task , autoReroll = 0},
+    { taskDescription = "Hatch 450 Lunar Eggs", todo = "Hatch", egg = "lunar-egg", priority = 2, task , autoReroll = 0},
+    { taskDescription = "Hatch 450 Void Eggs", todo = "Hatch", egg = "void-egg", priority = 2, task , autoReroll = 0},
+    { taskDescription = "Hatch 450 Hell Eggs", todo = "Hatch", egg = "hell-egg", priority = 2, task , autoReroll = 0},
+    { taskDescription = "Hatch 450 Nightmare Eggs", todo = "Hatch", egg = "nightmare-egg", priority = 2, task , autoReroll = 0},
+    { taskDescription = "Hatch 450 Rainbow Eggs", todo = "Hatch", egg = "rainbow-egg", priority = 2, task , autoReroll = 0},
+
+
+    { taskDescription = "Hatch 650 Common Eggs", todo = "Hatch", egg = "common-egg", priority = 3, task , autoReroll = 0},
+    { taskDescription = "Hatch 650 Spotted Eggs", todo = "Hatch", egg = "spotted-egg", priority = 3, task , autoReroll = 0},
+    { taskDescription = "Hatch 650 Iceshard Eggs", todo = "Hatch", egg = "iceshard-egg", priority = 3, task , autoReroll = 0},
+    { taskDescription = "Hatch 650 Spikey Eggs", todo = "Hatch", egg = "spikey-egg", priority = 3, task , autoReroll = 0},
+    { taskDescription = "Hatch 650 Magma Eggs", todo = "Hatch", egg = "magma-egg", priority = 3, task , autoReroll = 0},
+    { taskDescription = "Hatch 650 Crystal Eggs", todo = "Hatch", egg = "crystal-egg", priority = 3, task , autoReroll = 0},
+    { taskDescription = "Hatch 650 Lunar Eggs", todo = "Hatch", egg = "lunar-egg", priority = 3, task , autoReroll = 0},
+    { taskDescription = "Hatch 650 Void Eggs", todo = "Hatch", egg = "void-egg", priority = 3, task , autoReroll = 0},
+    { taskDescription = "Hatch 650 Hell Eggs", todo = "Hatch", egg = "hell-egg", priority = 3, task , autoReroll = 0},
+    { taskDescription = "Hatch 650 Nightmare Eggs", todo = "Hatch", egg = "nightmare-egg", priority = 3, task , autoReroll = 0},
+    { taskDescription = "Hatch 650 Rainbow Eggs", todo = "Hatch", egg = "rainbow-egg", priority = 3, task , autoReroll = 0},
+
+
+    { taskDescription = "Hatch 200 Common Pets", todo = "Hatch", egg = "event-3", priority = 4, task , autoReroll = 0},
+    { taskDescription = "Hatch 200 Uncommon Pets", todo = "Hatch", egg = "magma-egg", priority = 4, task , autoReroll = 0},
+    { taskDescription = "Hatch 200 Rare Pets", todo = "Hatch", egg = "iceshard-egg", priority = 4, task , autoReroll = 0},
+    { taskDescription = "Hatch 120 Epic Pets", todo = "Hatch", egg = "spikey-egg", priority = 4, task , autoReroll = 0},
+    { taskDescription = "Hatch 5 Legendary Pets", todo = "Hatch", egg = "spikey-egg", priority = 4, task , autoReroll = 0},
+    { taskDescription = "Hatch 1 Mythic Pet", todo = "Hatch", egg = "spikey-egg", priority = 4, task , autoReroll = 1},
+    { taskDescription = "Hatch 2 Mythic Pets", todo = "Hatch", egg = "spikey-egg", priority = 4, task , autoReroll = 1},
+
+
+    { taskDescription = "Hatch 50 Shiny Pets", todo = "Hatch", egg = "event-3", priority = 5, task , autoReroll = 0},
+    { taskDescription = "Hatch 80 Shiny Pets", todo = "Hatch", egg = "event-3", priority = 5, task , autoReroll = 0},
+    
+
+    { taskDescription = "Hatch 1,500 Eggs", todo = "Hatch", egg = "event-3", priority = 6, task , autoReroll = 1},
+    { taskDescription = "Hatch 2,500 Eggs", todo = "Hatch", egg = "event-3", priority = 6, task , autoReroll = 1},
+
+
+    { taskDescription = "Play for 10 minutes", todo = "Bubble", egg = "", priority = 7, task , autoReroll = 1},
+    { taskDescription = "Play for 15 minutes", todo = "Bubble", egg = "", priority = 7, task , autoReroll = 1},
+}
+
+function rerollTask(taskNumber)
+    local args = {
+        [1] = "CompetitiveReroll",
+        [2] = taskNumber
+    }
+    
+    game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Framework"):WaitForChild("Network"):WaitForChild("Remote"):WaitForChild("Event"):FireServer(unpack(args))
+end
+
+function getRerollTokenAmount()
+    local unparsedAmount = player.PlayerGui.ScreenGui.Inventory.Frame.Inner.Items.Main.ScrollingFrame.Powerups.Items["Reroll Orb"].Inner.Button.Inner.Amount.ContentText
+    return unparsedAmount
+end
+
+local competitiveTasks = player.PlayerGui.ScreenGui.Competitive.Frame.Content.Tasks
+function rerollEmoTasks()
+    
+    table.sort(competitiveTasksList, function(a, b)
+        return a.priority < b.priority
+    end)
+    
+    local i = 0
+    local maxTries = 5
+    
+    while i < maxTries do
+        local taskNumber = 1
+        local rerolled = false
+
+        for _, task in pairs(competitiveTasks:GetChildren()) do
+            if not task:IsA("Frame") then
+                continue
+            end
+
+            local taskText = task.Content.Label.ContentText
+        
+            for _, compTask in pairs(competitiveTasksList) do
+                -- print("Comp Task:", compTask.taskDescription)
+                if taskText == compTask.taskDescription then
+                    if compTask.autoReroll == 1 and taskStates["Auto Reroll Comp Tasks"] then
+                        rerollTask(taskNumber)
+                        local rerollTokenAmount = getRerollTokenAmount()
+                        print("Rerolled Task: " .. taskText .. " Reroll Tokens Remaining: " .. rerollTokenAmount)
+                        rerolled = true
+                    end
+                    break
+                end
+            end
+            taskNumber = taskNumber + 1
+        end
+
+        if not rerolled then
+            break
+        end
+
+        i = i + 1
+        task.wait(0.1)
+    end
+end
+
+function getBestTask()
+    local bestTask = nil
+
+    if taskStates["Auto Reroll Comp Tasks"] then
+        rerollEmoTasks()
+    end
+    
+    table.sort(competitiveTasksList, function(a, b)
+        return a.priority < b.priority
+    end)
+    for _, task in pairs(competitiveTasks:GetChildren()) do
+        if not task:IsA("Frame") then
+            continue
+        end
+        local taskText = task.Content.Label.ContentText
+        print("Task Text:", taskText)
+        
+        for _, compTask in pairs(competitiveTasksList) do
+            -- print("Comp Task:", compTask.taskDescription)
+            if taskText == compTask.taskDescription then
+                if not bestTask or bestTask.priority > compTask.priority then 
+                    print("Best Task:", taskText, "Priority:", compTask.priority)
+                    bestTask = compTask
+                    bestTask.task = task
+                    break
+                end
+            end
+        end
+    end
+
+    return bestTask
+end
+
+function getEggFarmPosition(eggName)
+    for _, eggPosition in pairs(eggPositionsEggFarm) do
+        if eggPosition.name == eggName then
+            return eggPosition.position
+        end
+    end
+end
+
+function doCompTask(task)
+    print("Starting Competitive Task:", task.taskDescription)
+    if not task then
+        return
+    end
+
+    if task.todo == "Hatch" then
+        local eggPosition = getEggFarmPosition(task.egg)
+        walkToPos(eggPosition)
+        --moveToHardEgg(eggPosition, task.taskDescription)
+        taskStates["Fast Hatch"] = true
+        fastHatchNearestEgg()
+    end
+
+    if task.todo == "Bubble" then
+        taskStates["Blow Bubble"] = true
+        taskStates["Fast Hatch"] = false
+    end
+
+
+    local taskProgress = tonumber(task.task.Content.Bar.Label.ContentText:sub(1, -2))
+    local lastTaskProgress
+    local unchangedTime = 0
+    local timeoutTime = 5
+    local waitTime = 1
+
+    while taskStates["Auto Comp Tasks"] do
+        if lastTaskProgress and lastTaskProgress > taskProgress then
+            -- finshih with task new checking
+            print("Finished Task:", task.taskDescription)
+            break
+        end
+        if lastTaskProgress == taskProgress then
+            unchangedTime = unchangedTime + waitTime
+        else
+            unchangedTime = 0
+        end
+
+        if unchangedTime > timeoutTime then
+            print("Task Timed Out:", task.taskDescription)
+            break
+        end
+
+        lastTaskProgress = taskProgress
+        taskProgress = tonumber(task.task.Content.Bar.Label.ContentText:sub(1, -2))
+        print("Task: " .. task.taskDescription .. " Progress:", taskProgress .. "%")
+        wait(waitTime)
+    end
+end
+
+function autoCompTasks()
+    task.spawn(function()
+        startLightNoClip()
+        local oldPos = Workspace.Worlds["The Overworld"].FastTravel.Root.Position
+        Workspace.Worlds["The Overworld"].FastTravel.Root.Position = Vector3.new(0, -10, 0)
+        while taskStates["Auto Comp Tasks"] do
+            print("Looking for new Task")
+            local bestTask = getBestTask()
+            if bestTask then
+                hasCompTask = true
+                doCompTask(bestTask)
+            end
+            task.wait(0.1)
+        end
+        restoreLightNoClip()
+        Workspace.Worlds["The Overworld"].FastTravel.Root.Position = oldPos
+    end)
+end
+
+--  ..............................................................................................................................................................................................................................
+--   BIG FAT MINIMAP MARKER BELOW 🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽🔽
+--   █████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████
+--   █░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+--   █░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+--   █░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+--   █░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+--   █░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+--   █░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+--   █░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+--   █░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+--   █░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+--   █░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+--   █░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+--   █░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+--   █░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+--   █░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+--   █░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+--   █░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+--   █░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+--   █░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+--   █░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+--   █░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+--   █░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+--   █░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+--   █░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+--   █░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+--   █░░░░░░░░░░░░░░░░░💣💣💣💣💣💣💣💣💣💣💣💣💣💣💣💣░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣💣💣💣💣💣💣💣💣💣💣💣💣💣💣💣░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+--   █░░░░░░░░░░░░░░░░░💣💣💣💣💣💣💣💣💣💣💣💣💣💣💣💣░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣💣💣💣💣💣💣💣💣💣💣💣💣💣💣💣░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+--   █░░░░░░░░░░░░░░░░░💣💣💣💣💣💣💣💣💣💣💣💣💣💣💣💣░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░💣💣💣💣💣💣💣💣💣💣💣💣💣💣💣💣💣💣░░░░░░░░░░░░░░░░░░░░░░💣💣💣░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+--   █░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+--   █░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+--   █████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████
+--   LOOK UP THERE 🔥🔥🔥🔥 ⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️ 🔥🔥🔥🔥
+--   That was your daily dopamine drop. 
+--  ..............................................................................................................................................................................................................................
+
+
+
+local screenGui = Instance.new("ScreenGui")
+local isScriptEnabled = true
+screenGui.Name = "TaskToggleUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 300, 0, 350)
+frame.Position = UDim2.new(0.05, 0, 0.3, 0)
+frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+frame.BorderSizePixel = 0
+frame.Parent = screenGui
+frame.Active = true
+frame.Draggable = true
+
+local titleBar = Instance.new("TextLabel")
+titleBar.Size = UDim2.new(1, 0, 0, 30)
+titleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+titleBar.TextColor3 = Color3.new(1, 1, 1)
+titleBar.Text = "Task Toggle UI"
+titleBar.Font = Enum.Font.SourceSansBold
+titleBar.TextSize = 18
+titleBar.TextXAlignment = Enum.TextXAlignment.Center
+titleBar.Parent = frame
+
+local scrollingFrame = Instance.new("ScrollingFrame")
+scrollingFrame.Size = UDim2.new(1, -10, 1, -40)
+scrollingFrame.Position = UDim2.new(0, 5, 0, 35)
+scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+scrollingFrame.BackgroundTransparency = 1
+scrollingFrame.BorderSizePixel = 0
+scrollingFrame.ScrollBarThickness = 6
+scrollingFrame.Parent = frame
+
+local layout = Instance.new("UIListLayout")
+layout.Padding = UDim.new(0, 8)
+layout.FillDirection = Enum.FillDirection.Vertical
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+layout.Parent = scrollingFrame
+
+layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 10)
+end)
+
+local closeButton = Instance.new("TextButton")
+closeButton.Size = UDim2.new(0, 30, 0, 30)
+closeButton.Position = UDim2.new(1, -35, 0, 0)
+closeButton.BackgroundColor3 = Color3.fromRGB(120, 50, 50)
+closeButton.TextColor3 = Color3.new(1, 1, 1)
+closeButton.Text = "X"
+closeButton.Font = Enum.Font.SourceSansBold
+closeButton.TextSize = 20
+closeButton.BorderSizePixel = 0
+closeButton.Parent = frame
+closeButton.ZIndex = 2
+closeButton.AutoButtonColor = true
+
+local isMinimized = false
+
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(0, 30, 0, 30)
+toggleButton.Position = UDim2.new(1, -70, 0, 0)
+toggleButton.BackgroundColor3 = Color3.fromRGB(50, 120, 50)
+toggleButton.TextColor3 = Color3.new(1, 1, 1)
+toggleButton.Text = "-"
+toggleButton.Font = Enum.Font.SourceSansBold
+toggleButton.TextSize = 20
+toggleButton.BorderSizePixel = 0
+toggleButton.Parent = frame
+toggleButton.ZIndex = 2
+toggleButton.AutoButtonColor = true
+
+toggleButton.MouseButton1Click:Connect(function()
+    isMinimized = not isMinimized
+    if isMinimized then
+        scrollingFrame.Visible = false
+        toggleButton.Text = "+"
+        frame.Size = UDim2.new(0, 300, 0, 30)
+    else
+        scrollingFrame.Visible = true
+        toggleButton.Text = "-"
+        frame.Size = UDim2.new(0, 300, 0, 350)
+    end
+end)
+
+
+
+
+closeButton.MouseButton1Click:Connect(function()
+    print("Exiting...")
+    for name, _ in pairs(taskStates) do
+        taskStates[name] = false
+    end
+    screenGui:Destroy()
+    isScriptEnabled = false
+end)
+
+
+local function createCheckbox(name, defaultState, loopFunc, displayName)
+    displayName = displayName or name
+    local container = Instance.new("Frame")
+    container.Size = UDim2.new(1, -20, 0, 30)
+    container.BackgroundTransparency = 1
+    container.Parent = scrollingFrame
+
+    local checkbox = Instance.new("TextButton")
+    checkbox.Size = UDim2.new(0, 24, 0, 24)
+    checkbox.Position = UDim2.new(0, 0, 0.5, -12)
+    checkbox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    checkbox.BorderSizePixel = 0
+    checkbox.Text = ""
+    checkbox.AutoButtonColor = false
+    checkbox.Parent = container
+
+    local checkmark = Instance.new("ImageLabel")
+    checkmark.Size = UDim2.new(1, 0, 1, 0)
+    checkmark.Position = UDim2.new(0, 0, 0, 0)
+    checkmark.BackgroundTransparency = 1
+    checkmark.Image = "rbxassetid://6031094678" 
+    checkmark.ImageColor3 = Color3.new(1, 1, 1)
+    checkmark.Visible = defaultState
+    checkmark.Parent = checkbox
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -30, 1, 0)
+    label.Position = UDim2.new(0, 30, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = displayName
+    label.TextColor3 = Color3.new(1, 1, 1)
+    label.Font = Enum.Font.SourceSans
+    label.TextSize = 18
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = container
+
+    taskStates[name] = defaultState
+
+    if defaultState then
+        task.spawn(loopFunc)
+    end
+
+    checkbox.MouseButton1Click:Connect(function()
+        taskStates[name] = not taskStates[name]
+        checkmark.Visible = taskStates[name]
+
+        if taskStates[name] then
+            print(name .. " enabled")
+            task.spawn(function()
+                loopFunc()
+            end)
+        else
+            print(name .. " disabled")
+        end
+    end)
+
+    buttonMap[name] = {
+        button = checkbox,
+        checkmark = checkmark,
+        label = label,
+        container = container
+    }
+end
+
+local function removeCheckbox(name)
+    if buttonMap[name] then
+        buttonMap[name].container:Destroy()
+        buttonMap[name] = nil
+        taskStates[name] = nil
+    end
+end
+
+-- GONE EASTER 2025 createCheckbox("Easter Island", false, function()
+-- GONE EASTER 2025     deleteToEasterIsland()
+-- GONE EASTER 2025 end, "Teleport to Easter Island")
+
+createCheckbox("Fast Hatch", false, function()
+    fastHatchNearestEgg()
+end, "Fast Hatch nearest Egg")
+
+createCheckbox("Remove Hatch Animation", false, function()
+    removeHatchAnimation()
+end, "Remove Hatch Animation\n<Not working on XENO>")
+
+createCheckbox("Auto Reroll Comp Tasks", false, function()
+end, "Auto Reroll Emo Tasks")
+
+createCheckbox("Auto Comp Tasks", false, function()
+    autoCompTasks()
+end, "Auto Competitive Tasks\n<Turn Game English>\n<Go to spawn egg circle\ncause walking, no noclip>")
+
+createCheckbox("Light no clip", false, function()
+    lightNoClip()
+end)
+
+createCheckbox("Blow Bubble", true, function()
+    blowBubble()
+end)
+
+createCheckbox("Auto Sell", false, function()
+    autoSell()
+end, "Auto Sell - Broken")
+
+createCheckbox("Open Golden Chest", false, function()
+    openGoldenChest()
+end)
+
+createCheckbox("Open Royal Chest", false, function()
+    openRoyalChest()
+end)
+
+createCheckbox("Claim Chests", true, function()
+    claimChests()
+end)
+
+createCheckbox("Anti AFK", true, function()
+    antiAFK()
+end)
+
+createCheckbox("Auto Craft Potions", false, function() 
+    autoCraftPotions()
+end)
+
+createCheckbox("Buy Alien Shop", true, function()
+    autoBuyAlienShop()
+end)
+
+createCheckbox("Buy Blackmarket Shop", true, function()
+    autoBuyBlackmarketShop()
+end)
+
+createCheckbox("Claim Playtime Rewards", true, function()
+    claimPlaytimeRewards()
+end)
+
+createCheckbox("Claim Spinwheel", true, function()
+    claimSpinwheel()
+end)
+
+createCheckbox("Auto Doggy Jump", true, function()
+    autoDoggyJump()
+end)
+
+createCheckbox("No Clip", isToggleNoClipEnabled, function()
+    noClip()
+end)
+
+createCheckbox("Hatch Webhook", true, function()
+    sendHatchWebhook()
+end) 
+
+createCheckbox("Use Tickets", false, function()
+    useTickets()
+end, "Use Tickets, stand in circle")
+
+createCheckbox("Myster Gift", false, function()
+    openMysteryGift(10)
+end, "Mystery Gift x10")
+
+createCheckbox("Auto Collect Coins", false, function()
+    autoCollectCoins()
+end)
+
+createCheckbox("Open Genie Menu", false, function()
+    openGenieMenu()
+end)
+
+createCheckbox("Open enchanter", false, function()
+    openEnchanterMenu()
+end)
+
+createCheckbox("Open Blackmarked", false, function()
+    openBlackmarkedMenu()
+end)
+
+
+local eggsSectionLabel = Instance.new("TextLabel")
+eggsSectionLabel.Size = UDim2.new(1, -10, 0, 25)
+eggsSectionLabel.Text = "Auto Rift Hatcher Egg:"
+eggsSectionLabel.TextColor3 = Color3.new(1, 1, 1)
+eggsSectionLabel.Font = Enum.Font.SourceSansBold
+eggsSectionLabel.TextSize = 20
+eggsSectionLabel.BackgroundTransparency = 1
+eggsSectionLabel.Parent = scrollingFrame
+
+local eggPositions = {
+    -- GONE EASTER 2025{ displayName = "[Event] Bunny Egg", name = "event-1", position = Vector3.new(-404.39666748046875, 12013.29296875, -61.605796813964844) },
+    -- GONE EASTER 2025{ displayName = "[Event] Pastel Egg", name = "event-2", position = Vector3.new(-395.2763977050781, 12013.009765625, -59.971031188964844) },
+    -- GONE EASTER 2025{ displayName = "[Event] Throwback Egg", name = "event-3", position = Vector3.new(-382.8701477050781, 12013.009765625, -58.511295318603516) },
+    { displayName = "[Event] 100M Egg", name = "100m-egg", position = Vector3.new(17.14812469482422, 10.15925121307373, -3.9271082878112793) },
+    { displayName = "Common Egg", name = "common-egg", position = Vector3.new(-7.299672603607178, 10.2268648147583, -82.11334228515625) },
+    { displayName = "Spotted Egg", name = "spotted-egg", position = Vector3.new(-7.268064022064209, 10.2268648147583, -71.30366516113281) },
+    { displayName = "Iceshard Egg", name = "iceshard-egg", position = Vector3.new(-7.1924262046813965, 10.2268648147583, -60.178550720214844) },
+    { displayName = "[Ewww] Inferno Egg", name = "[ewww]-inferno-egg", position = Vector3.new(49.840545654296875, 10.226863861083984, -10.35765266418457) },
+    { displayName = "Spikey Egg", name = "spikey-egg", position = Vector3.new(-7.173588752746582, 424.1598815917969, 159.3221435546875) },
+    { displayName = "Crystal Egg", name = "crystal-egg", position = Vector3.new(-18.77300262451172, 2666.09326171875, 18.919546127319336) },
+    { displayName = "Magma Egg", name = "magma-egg", position = Vector3.new(-18.604490280151367, 2666.09326171875, 8.066484451293945) },
+    { displayName = "Lunar Egg", name = "lunar-egg", position = Vector3.new(-57.33772659301758, 6863.5107421875, 79.87572479248047) },
+    { displayName = "Void Egg", name = "void-egg", position = Vector3.new(6.147462844848633, 10148.7314453125, 188.08139038085938) },
+    { displayName = "Hell Egg", name = "hell-egg", position = Vector3.new(-6.661905765533447, 10148.7353515625, 193.9149169921875) },
+    { displayName = "Nigtmare Egg", name = "nigtmare-egg", position = Vector3.new(-19.217653274536133, 10148.755859375, 185.91783142089844) },
+    { displayName = "Rainbow Egg", name = "rainbow-egg", position = Vector3.new(-35.82299041748047, 15973.3515625, 44.0614013671875) },
+}
+
+
+-- for _, egg in pairs(eggPositions) do
+--     createCheckbox(egg.displayName, false, function()
+--         addToIslandHatcher(egg.name)
+--         enableWatcher()
+--         if checkExistingIslands() then
+--             local bestRift = getBestRift()
+--             moveToRift(bestRift)
+--             hatchEgg(bestRift)
+--         end
+--     end)
+-- end
+
+-- CHECK HERE WAHHHHHHHHHHHHH
+
+local fallbackEgg = eggPositions[1]
+local activeRifts = {}
+local riftHatchWatcher = {
+    { name = "event-2x25", priority = 1 },
+    { name = "event-1x25", priority = 2 },
+    { name = "event-2x10", priority = 3 },
+    { name = "event-1x10", priority = 4 },
+    { name = "spikey-eggx5", priority = 5 },
+}
+local gotNewRift = false
+
+function hatchFallbackEgg()
+    print("CALLING MOVE TO EGG")
+    moveToHardEgg(fallbackEgg.position, fallbackEgg.displayName)
+    task.spawn(function() 
+        while taskStates["Auto Hatch Rifts"] and not currentIsland do
+            taskStates["Fast Hatch"] = true
+            task.wait(1)
+        end
+    end)
+    fastHatchNearestEgg()
+end
+
+function getBestRift()
+    local bestRift = nil
+    table.sort(riftHatchWatcher, function(a, b)
+        return a.priority < b.priority
+    end)
+    for _, rift in pairs(riftHatchWatcher) do
+        print("CHECKING RIFT:", rift.name)
+        if activeRifts[rift.name] then
+            bestRift = activeRifts[rift.name]
+            print("FOUND RIFT:", __)
+            break
+        end
+    end
+    return bestRift
+end
+
+function autoHatchRift(bestRift)
+    if currentIsland == bestRift then
+        return
+    end
+    currentIsland = bestRift
+    moveToRift(bestRift)
+    hatchEgg(bestRift)
+    task.spawn(function()
+        while taskStates["Auto Hatch Rifts"] and currentIsland == bestRift and not gotNewRift do 
+            task.wait(1)
+        end
+        if gotNewRift then
+            local newBestRift = getBestRift()
+            if newBestRift ~= bestRift then
+                currentIsland = nil
+                autoHatchRift(newBestRift)
+            end
+        end
+    end)
+
+    task.spawn(function()
+        rift_timer= getRiftTimer(bestRift)
+        while rift_timer ~= "0 seconds" and currentIsland == bestRift do
+            task.wait(1)
+            rift_timer = getRiftTimer(bestRift)
+        end
+        print("EGG GONE")
+
+        if currentIsland == bestRift then
+            print("GETTING NEW EGG")
+            currentIsland = nil
+            bestRift = getBestRift()
+            if bestRift then
+                autoHatchRift(bestRift)
+            else
+                print("No rifts found") 
+                hatchFallbackEgg()
+            end
+        end
+
+    end)
+end
+
+function autoHatchRifts()
+    local bestRift = getBestRift()
+    if bestRift then
+        autoHatchRift(bestRift)
+    else 
+        print("No rifts found")
+        hatchFallbackEgg()
+    end
+end
+
+function addToIslandHatcher(islandName, multiplier, priority)
+    local riftName = islandName .. multiplier
+    table.insert(riftHatchWatcher, { name = riftName, priority = priority })
+
+    local bestRift = getBestRift()
+    if bestRift ~= currentIsland then
+        autoHatchRift(bestRift)
+    end
+end
+
+
+
+createCheckbox("Auto Hatch Rifts", false, function()
+    autoHatchRifts()
+end)
+
+for _, egg in pairs(eggPositions) do
+    createCheckbox(egg.displayName .. egg.position.Y, false, function()
+        moveToEgg(egg.position, egg.displayName .. egg.position.Y)
+    end, egg.displayName)
+end
+
+-- Rift UI Section
+local riftSectionLabel = Instance.new("TextLabel")
+riftSectionLabel.Size = UDim2.new(1, -10, 0, 25)
+riftSectionLabel.Text = "Rifts:"
+riftSectionLabel.TextColor3 = Color3.new(1, 1, 1)
+riftSectionLabel.Font = Enum.Font.SourceSansBold
+riftSectionLabel.TextSize = 20
+riftSectionLabel.BackgroundTransparency = 1
+riftSectionLabel.Parent = scrollingFrame
+
+for _, rift in pairs(riftsFolder:GetChildren()) do
+    if rift:IsA("Model") then
+        local height = rift:GetPivot().Position.Y
+
+        local multiplier = getLuckMultiplier(rift)
+        local displayName = "Rift: " .. rift.Name
+        if multiplier then
+            displayName = displayName .. " " .. multiplier
+        end
+        createCheckbox("Rift: " .. height, false, function()
+            moveToRift(rift)
+            if taskStates["Auto Hatch Rifts"] then
+                hatchEgg(rift)
+            end
+        end, displayName)
+        riftTimer(rift)
+        if multiplier then
+            local riftMultName = rift.Name .. multiplier
+            activeRifts[riftMultName] = rift
+            print("Rift:", rift.Name, "Luck Multiplier:", multiplier, "Height", height)
+            rift:SetAttribute("LuckMultiplier", multiplier)
+        else
+            activeRifts[rift.Name] = rift
+            print("Rift:", rift.Name, "has no luck multiplier.", "Height", height)
+        end
+    end
+end
+
+riftsFolder.ChildAdded:Connect(function(child)
+    if child:IsA("Model") then
+
+        local rift = child
+        local height = rift:GetPivot().Position.Y
+
+        local multiplier = getLuckMultiplier(rift)
+        local displayName = "Rift: " .. rift.Name
+        if multiplier then
+            displayName = displayName .. " " .. multiplier
+        end
+        createCheckbox("Rift: " .. height, false, function()
+            moveToRift(rift)
+        end, displayName) 
+        riftTimer(rift)
+        if multiplier then
+            activeRifts[rift.Name .. multiplier] = rift
+            gotNewRift = true
+            print("NEW: Rift:", rift.Name, "Luck Multiplier:", multiplier)
+        else
+            activeRifts[rift.Name] = rift
+            print("NEW: Rift:", rift.Name, "has no luck multiplier.")
+        end
+    end
+end)
+
+riftsFolder.ChildRemoved:Connect(function(child)
+    if child:IsA("Model") then
+        local rift = child
+        local height = rift:GetPivot().Position.Y
+        local multiplier = rift:GetAttribute("LuckMultiplier") or getLuckMultiplier(rift)
+        removeCheckbox("Rift: " .. height)
+        print("Rift removed: " .. rift.Name)
+        if multiplier then
+            activeRifts[rift.Name .. multiplier] = nil
+            print("Removed: Rift:", rift.Name, "Luck Multiplier:", multiplier)
+        else
+            activeRifts[rift.Name] = nil
+            print("Removed: Rift:", rift.Name, "has no luck multiplier.")
+        end
+    end
+end)
