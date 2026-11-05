@@ -1419,6 +1419,27 @@ local function runAutoDF(token)
             if cancelled() then break end
         end
 
+        -- Sebelum TP ke tile tepi, buka dua tile vertikal pada sisi masuk:
+        -- untuk lane Y, bersihkan Y-1 dan Y di X=1 atau X=98.
+        -- Contoh awal Y=38: bersihkan Y=37 dan Y=38 terlebih dahulu.
+        for _, edgeY in ipairs({ y - 1, y }) do
+            if cancelled() then break end
+            if edgeY >= 0 and edgeY < world.h then
+                if tileValue(world, "fg", targetX, edgeY) == dirtId then
+                    dfStatus.Text = string.format("OPEN EDGE DIRT X=%d Y=%d", targetX, edgeY)
+                    breakCell(world, dirtId, { x = targetX, y = edgeY }, cancelled)
+                end
+                if cancelled() then break end
+                if caveBackgroundId
+                    and tileValue(world, "fg", targetX, edgeY) == 0
+                    and tileValue(world, "bg", targetX, edgeY) == caveBackgroundId then
+                    dfStatus.Text = string.format("OPEN EDGE CAVE X=%d Y=%d", targetX, edgeY)
+                    breakCell(world, caveBackgroundId, { x = targetX, y = edgeY }, cancelled)
+                end
+            end
+        end
+        if cancelled() then break end
+
         -- TP hanya satu tile dari titik pendekatan ke batas lane.
         task.wait(DF_TP_COOLDOWN)
         local moved, result = pcall(world.goTo, targetX, y)
@@ -1468,45 +1489,61 @@ local function runAutoDF(token)
             task.wait(0.12)
         end
 
-        -- Sebelum berpindah ke Y berikutnya, bersihkan dulu target di dua
-        -- ujung lane berikutnya (X=1 dan X=98) dari posisi lane saat ini.
-        -- Ini mencegah karakter/teleport bertemu Dirt atau Cave di titik masuk.
+        -- Sebelum pindah ke lane berikutnya, bersihkan dua tile vertikal
+        -- pada ujung lane berikutnya: Y berikutnya-1 dan Y berikutnya.
+        -- Hanya sisi masuk yang dibuka, bukan kedua ujung sekaligus.
         local nextY = y + 2
+        local edgeBlocked = false
         if not cancelled() and nextY < world.h then
-            local entryEdges
-            if fromRight then
-                -- Lane ini berakhir di kiri; periksa kanan dulu dan kiri terakhir
-                -- agar karakter kembali berada di sisi masuk lane berikutnya.
-                entryEdges = { maxX, minX }
-            else
-                -- Lane ini berakhir di kanan; periksa kiri dulu dan kanan terakhir.
-                entryEdges = { minX, maxX }
-            end
+            local entryX = fromRight and minX or maxX
+            local entryYs = { nextY - 1, nextY }
 
-            for _, edgeX in ipairs(entryEdges) do
+            for _, edgeY in ipairs(entryYs) do
                 if cancelled() then break end
+                if edgeY >= 0 and edgeY < world.h then
+                    -- Tetap berada di ujung lane yang selesai saat membuka jalur
+                    -- vertikal pada ujung lane berikutnya.
+                    local px, py = getTile()
+                    if px ~= entryX or py ~= y then
+                        local walked = Nav.Walk(entryX, y, cancelled, DF_WALK_DELAY)
+                        if not walked and not cancelled() then
+                            dfStatus.Text = string.format("EDGE CHECK WALK FAILED Y=%d", nextY)
+                            edgeBlocked = true
+                            break
+                        end
+                    end
+                    if cancelled() then break end
 
-                -- Tetap berjalan di lane Y yang sudah selesai, bukan masuk ke Y berikutnya.
-                local px, py = getTile()
-                if px ~= edgeX or py ~= y then
-                    local walked = Nav.Walk(edgeX, y, cancelled, DF_WALK_DELAY)
-                    if not walked and not cancelled() then
-                        dfStatus.Text = string.format("EDGE CHECK WALK FAILED Y=%d", nextY)
+                    if tileValue(world, "fg", entryX, edgeY) == dirtId then
+                        dfStatus.Text = string.format("CLEAR EDGE DIRT X=%d Y=%d", entryX, edgeY)
+                        breakCell(world, dirtId, { x = entryX, y = edgeY }, cancelled)
+                    end
+                    if cancelled() then break end
+
+                    if caveBackgroundId
+                        and tileValue(world, "fg", entryX, edgeY) == 0
+                        and tileValue(world, "bg", entryX, edgeY) == caveBackgroundId then
+                        dfStatus.Text = string.format("CLEAR EDGE CAVE X=%d Y=%d", entryX, edgeY)
+                        breakCell(world, caveBackgroundId, { x = entryX, y = edgeY }, cancelled)
+                    end
+                    if cancelled() then break end
+
+                    local fgStillThere = tileValue(world, "fg", entryX, edgeY) == dirtId
+                    local bgStillThere = caveBackgroundId
+                        and tileValue(world, "fg", entryX, edgeY) == 0
+                        and tileValue(world, "bg", entryX, edgeY) == caveBackgroundId
+                    if fgStillThere or bgStillThere then
+                        dfStatus.Text = string.format("EDGE BLOCKED X=%d Y=%d", entryX, edgeY)
+                        edgeBlocked = true
                         break
                     end
                 end
-                if cancelled() then break end
-
-                -- Hanya cek dan pecahkan Dirt/Cave tepat di ujung lane berikutnya.
-                if tileValue(world, "fg", edgeX, nextY) == dirtId then
-                    breakCell(world, dirtId, { x = edgeX, y = nextY }, cancelled)
-                end
-                if caveBackgroundId
-                    and tileValue(world, "fg", edgeX, nextY) == 0
-                    and tileValue(world, "bg", edgeX, nextY) == caveBackgroundId then
-                    breakCell(world, caveBackgroundId, { x = edgeX, y = nextY }, cancelled)
-                end
             end
+        end
+
+        if edgeBlocked then
+            -- Jangan TP menembus tile ujung yang belum berhasil dibersihkan.
+            break
         end
 
         -- Lane selesai: lane berikutnya dimulai dari sisi seberang.
