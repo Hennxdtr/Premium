@@ -1425,49 +1425,64 @@ local function runAutoDF(token)
         return not cancelled()
     end
 
-    -- Lane pair: satu worker untuk setiap koordinat tile.
-    -- Kedua worker mengirim hit secara independen, jadi tile kedua tidak
-    -- menunggu tile pertama selesai. Karakter tetap satu; hanya proses hit-nya
-    -- yang berjalan bersamaan.
-    local function breakLanePair(cells)
-        local running = 0
-        local failed = false
+    -- Lane pair memakai worker per koordinat yang bisa terus berjalan saat player maju.
+    -- Batch menargetkan dua kolom, tetapi player cukup menunggu kolom terdekat selesai.
+    -- Kolom kedua tetap diproses di background dan dipakai lagi sebagai kolom pertama
+    -- pada langkah berikutnya (overlap 1), tanpa membuat worker duplikat.
+    local activeLaneWorkers = {}
 
+    local function laneTargetIdAt(x, y)
+        local fg = tileValue(world, "fg", x, y)
+        if idInList(fg, dirtIds) or idInList(fg, caveIds)
+            or idInList(fg, lavaIds) or idInList(fg, rockIds) then
+            return fg
+        end
+        if fg == 0 then
+            local bg = tileValue(world, "bg", x, y)
+            if idInList(bg, dirtIds) or idInList(bg, caveIds)
+                or idInList(bg, lavaIds) or idInList(bg, rockIds) then
+                return bg
+            end
+        end
+        return nil
+    end
+
+    local function ensureLaneWorker(x, y)
+        local key = tostring(x) .. ":" .. tostring(y)
+        if activeLaneWorkers[key] then return end
+        if not laneTargetIdAt(x, y) then return end
+
+        activeLaneWorkers[key] = true
+        task.spawn(function()
+            local startedAt = os.clock()
+            while not cancelled() do
+                local targetId = laneTargetIdAt(x, y)
+                if not targetId then break end
+                if os.clock() - startedAt > 10 then break end
+                pcall(hit, x, y, true)
+                task.wait(DF_STEP_DELAY)
+            end
+            activeLaneWorkers[key] = nil
+        end)
+    end
+
+    local function breakLanePair(cells, leadingCell)
         for _, cell in ipairs(cells) do
-            local x, y = cell.x, cell.y
-            if x >= 0 and x < world.w and y >= 0 and y < world.h then
-                running += 1
-                task.spawn(function()
-                    local startedAt = os.clock()
-                    while not cancelled() do
-                        local fg = tileValue(world, "fg", x, y)
-                        local targetId = nil
-                        if idInList(fg, dirtIds) or idInList(fg, caveIds)
-                            or idInList(fg, lavaIds) or idInList(fg, rockIds) then
-                            targetId = fg
-                        elseif fg == 0 then
-                            local bg = tileValue(world, "bg", x, y)
-                            if idInList(bg, dirtIds) or idInList(bg, caveIds)
-                                or idInList(bg, lavaIds) or idInList(bg, rockIds) then
-                                targetId = bg
-                            end
-                        end
-
-                        if not targetId then break end
-                        if os.clock() - startedAt > 10 then
-                            failed = true
-                            break
-                        end
-                        pcall(hit, x, y, true)
-                        task.wait(DF_STEP_DELAY)
-                    end
-                    running -= 1
-                end)
+            if not cancelled() and cell.x >= 0 and cell.x < world.w
+                and cell.y >= 0 and cell.y < world.h then
+                ensureLaneWorker(cell.x, cell.y)
             end
         end
 
-        while running > 0 and not cancelled() do task.wait(0.03) end
-        return not cancelled() and not failed
+        -- Jangan tunggu kolom kedua. Begitu kolom terdekat (misalnya X=9)
+        -- kosong, player maju satu tile; worker X=8 tetap berjalan dan digunakan
+        -- lagi bersama target X=7 pada batch berikutnya.
+        if leadingCell then
+            while not cancelled() and laneTargetIdAt(leadingCell.x, leadingCell.y) do
+                task.wait(0.03)
+            end
+        end
+        return not cancelled()
     end
 
     -- Awal lane: buka dua tile di sisi start. Setelah lane selesai,
@@ -1562,7 +1577,10 @@ local function runAutoDF(token)
             end
 
             -- Kirim hit ke dua kolom samping secara bersamaan.
-            if #batchCells > 0 and not breakLanePair(batchCells) then break end
+            if #batchCells > 0 then
+                local leadingCell = batchCells[1]
+                if not breakLanePair(batchCells, leadingCell) then break end
+            end
             -- Geser player satu tile; dua kolom target berikutnya overlap satu kolom.
             x += direction
             task.wait(DF_STEP_DELAY)
