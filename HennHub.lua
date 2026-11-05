@@ -236,12 +236,17 @@ local function makeToggle(name, callback)
     )
     btn.TextSize = 10
 
-    btn.Activated:Connect(function()
-        state = not state
+    local function setState(on)
+        state = on and true or false
         btn.Text = state and "ON" or "OFF"
         btn.BackgroundColor3 = state and C.green or C.red
         if callback then callback(state) end
+    end
+
+    btn.Activated:Connect(function()
+        setState(not state)
     end)
+    return setState
 end
 
 -- STAT
@@ -415,6 +420,8 @@ end)
 section("AUTO FARM")
 
 local farmEnabled = false
+local collectEnabled = false
+local setCollectToggle
 
 local farmRow = Instance.new("Frame")
 farmRow.Size = UDim2.new(1,-2,0,36)
@@ -442,13 +449,20 @@ farmButton.Activated:Connect(function()
     farmButton.BackgroundColor3 = farmEnabled and C.green or C.red
     status.Text = farmEnabled and "ON" or "IDLE"
     status.TextColor3 = farmEnabled and C.green or C.red
+    if not farmEnabled then
+        setCollectToggle(false)
+    end
 end)
 
 -- AUTO COLLECT
 section("AUTO COLLECT")
-local collectEnabled = false
-makeToggle("Enable Auto Collect", function(on)
-    collectEnabled = on
+setCollectToggle = makeToggle("Enable Auto Collect", function(on)
+    if on and not farmEnabled then
+        collectEnabled = false
+        if setCollectToggle then setCollectToggle(false) end
+    else
+        collectEnabled = on
+    end
 end)
 
 -- FLOATING BUTTON
@@ -836,14 +850,23 @@ local DROP_TP_DELAY = 0.55
 local DROP_WAIT = 0.25
 local DROP_RETURN_DELAY = 0.35
 
-local function pickDrops(world, before, cancel)
+local function pickDrops(world, before, cancel, allowedCells)
     local ok, list = pcall(world.dropList)
     if not ok or type(list) ~= "table" then return end
 
+    -- Collect dibatasi ke koordinat kotak grid yang dipilih saja.
+    local allowed = {}
+    if type(allowedCells) == "table" then
+        for _, cell in ipairs(allowedCells) do
+            allowed[tostring(cell.x) .. "," .. tostring(cell.y)] = true
+        end
+    end
+
     local targets = {}
     for _, d in ipairs(list) do
-        if (before == nil or not before[d]) and type(d.x) == "number"
-            and type(d.y) == "number" and not d.pending then
+        local inSelectedGrid = type(d.x) == "number" and type(d.y) == "number"
+            and allowed[tostring(math.floor(d.x)) .. "," .. tostring(math.floor(d.y))] == true
+        if (before == nil or not before[d]) and inSelectedGrid and not d.pending then
             table.insert(targets, d)
         end
     end
@@ -888,6 +911,7 @@ local farmToken, farmRunning = 0, false
 
 local function setFarmUI(on, text)
     farmEnabled = on
+    if not on and setCollectToggle then setCollectToggle(false) end
     farmButton.Text = on and "ON" or "OFF"
     farmButton.BackgroundColor3 = on and C.green or C.red
     status.Text = text or (on and "ON" or "IDLE")
@@ -989,7 +1013,7 @@ local function farmLoop(token, anchor, id)
         if collectEnabled then
             status.Text = "COLLECT"
             task.wait(0.3)
-            pickDrops(world, before, cancel)
+            pickDrops(world, before, cancel, cells)
             -- pickDrops mengembalikan pemain ke tile sebelum mengambil item;
             -- anchor Auto Farm tetap terkunci pada posisi awal.
         end
@@ -1069,26 +1093,9 @@ task.spawn(function()
 end)
 
 ----------------------------------------------------------------------
--- AUTO COLLECT (mandiri, saat Auto Farm mati)
+-- AUTO COLLECT berjalan hanya di dalam loop Auto Farm dan hanya pada
+-- koordinat grid yang dipilih. Saat Auto Farm OFF, toggle ikut OFF.
 ----------------------------------------------------------------------
-local collectToken = 0
-task.spawn(function()
-    while true do
-        if collectEnabled and not farmRunning then
-            local world = getWorld()
-            if world then
-                collectToken += 1
-                local token = collectToken
-                pickDrops(world, nil, function()
-                    return not collectEnabled or farmRunning or collectToken ~= token
-                end)
-            end
-            task.wait(0.5)
-        else
-            task.wait(0.3)
-        end
-    end
-end)
 
 
 ----------------------------------------------------------------------
