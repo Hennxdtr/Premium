@@ -1060,7 +1060,7 @@ local function ensureReach(reach)
 end
 
 ----------------------------------------------------------------------
--- PATHFINDING (jalan lewat tile kosong, kalau buntu terbang)
+-- PATHFINDING (jalan lewat tile kosong; tidak memakai mode melayang)
 ----------------------------------------------------------------------
 local Nav = {}
 local NAV_SPEED = 2 -- tile per frame
@@ -1334,6 +1334,7 @@ local function runAutoDF(token)
         end
         return
     end
+
     local dirtId = findDirtId(db)
     local caveBackgroundId = findCaveBackgroundId(db)
     local hit = findGameFn("hit")
@@ -1347,74 +1348,131 @@ local function runAutoDF(token)
         return
     end
 
-    local minX, maxX = 1, math.min(98, world.w - 2)
-    local firstY = 38
-    if maxX < minX or world.h <= firstY then
-        dfStatus.Text = "AREA INVALID"
-        if token == dfToken then
-            dfEnabled = false
-            dfButton.Text = "START AUTO DF"
-            dfButton.BackgroundColor3 = C.green
-        end
+    local currentX, currentY = getTile()
+    if not currentX or not currentY then
+        dfStatus.Text = "PLAYER POSITION NOT FOUND"
         return
     end
 
-    local rowIndex = 0
-    for y = firstY, world.h - 1, 2 do
-        if token ~= dfToken or not dfEnabled then break end
-        if y >= world.h then break end
-        rowIndex += 1
-        local fromRight = (rowIndex % 2 == 1)
-        local startX = fromRight and (maxX + 1) or (minX - 1)
-        local targetX = fromRight and maxX or minX
-        local moveOK, moveResult = pcall(world.goTo, startX, y)
-        if not moveOK or moveResult == false then
-            dfStatus.Text = "MOVE ERROR"
-            break
+    local minX, maxX = 1, math.min(98, world.w - 2)
+    local startY = math.max(0, math.floor(currentY))
+    if maxX < minX or startY >= world.h then
+        dfStatus.Text = "AREA INVALID"
+        return
+    end
+
+    local function cancelled()
+        return token ~= dfToken or not dfEnabled
+    end
+
+    local function hasTargetOnLane(y)
+        for x = minX, maxX do
+            if tileValue(world, "fg", x, y) == dirtId then
+                return true
+            end
+            if caveBackgroundId
+                and tileValue(world, "fg", x, y) == 0
+                and tileValue(world, "bg", x, y) == caveBackgroundId then
+                return true
+            end
         end
-        dfStatus.Text = string.format("LANE Y=%d", y)
+        return false
+    end
 
-        local x = targetX
-        while (fromRight and x >= minX) or ((not fromRight) and x <= maxX) do
-            if token ~= dfToken or not dfEnabled then break end
+    -- Pilih sisi awal yang paling dekat dengan posisi karakter sekarang.
+    -- Arah hanya berganti setelah lane yang memiliki target selesai diproses.
+    -- Lane kosong dilewati tanpa mengubah arah zig-zag berikutnya.
+    local nextFromRight = (currentX - minX) >= (maxX - currentX)
+    local MOVE_NEAR_THRESHOLD = 8
 
-            -- Gerakkan karakter satu tile mengikuti target punch.
-            -- Dari kanan: berdiri di sebelah kanan Dirt lalu punch ke kiri.
-            -- Dari kiri: berdiri di sebelah kiri Dirt lalu punch ke kanan.
-            local standX = x + (fromRight and 1 or -1)
-            local moved, moveResult = pcall(world.goTo, standX, y)
-            if not moved or moveResult == false then
-                dfStatus.Text = "MOVE ERROR"
+    for y = startY, world.h - 1, 2 do
+        if cancelled() then break end
+
+        -- Periksa lane terlebih dahulu. Jika tidak ada Dirt/Cave Background,
+        -- lewati lane ini dan lanjut ke Y berikutnya tanpa membalik arah.
+        if not hasTargetOnLane(y) then
+            dfStatus.Text = string.format("SKIP Y=%d (NO TARGET)", y)
+            task.wait(0.04)
+            continue
+        end
+
+        local fromRight = nextFromRight
+
+        local startEdge = fromRight and maxX or minX
+        local outsideX = fromRight and (maxX + 1) or (minX - 1)
+        local targetX = fromRight and maxX or minX
+        dfStatus.Text = string.format("PREPARE Y=%d", y)
+
+        -- Jika jauh dari pojok, jalan cepat sampai tile tepi terlebih dahulu.
+        -- Jika dekat, langsung gunakan goTo ke posisi satu tile di luar world.
+        local nowX, nowY = getTile()
+        local distance = nowX and (math.abs(nowX - outsideX) + math.abs((nowY or y) - y)) or math.huge
+        if distance > MOVE_NEAR_THRESHOLD then
+            local walked = Nav.Walk(startEdge, y, cancelled)
+            if not walked and not cancelled() then
+                dfStatus.Text = "WALK TO EDGE FAILED"
                 break
             end
+            if cancelled() then break end
+            local moved, result = pcall(world.goTo, outsideX, y)
+            if not moved or result == false then
+                dfStatus.Text = "EDGE MOVE ERROR"
+                break
+            end
+        else
+            local moved, result = pcall(world.goTo, outsideX, y)
+            if not moved or result == false then
+                dfStatus.Text = "EDGE MOVE ERROR"
+                break
+            end
+        end
 
-            if token ~= dfToken or not dfEnabled then break end
-            -- Break Dirt foreground terlebih dahulu.
+        dfStatus.Text = string.format("FARMING Y=%d", y)
+        local x = targetX
+        while (fromRight and x >= minX) or ((not fromRight) and x <= maxX) do
+            if cancelled() then break end
+
+            -- Berdiri di tile sebelah target, lalu berjalan cepat sambil punch.
+            local standX = x + (fromRight and 1 or -1)
+            local px, py = getTile()
+            if not px or px ~= standX or py ~= y then
+                local moved = Nav.Walk(standX, y, cancelled)
+                if not moved and not cancelled() then
+                    -- Satu langkah langsung hanya sebagai fallback untuk tile tepi.
+                    local ok, result = pcall(world.goTo, standX, y)
+                    if not ok or result == false then
+                        dfStatus.Text = "LANE MOVE ERROR"
+                        break
+                    end
+                end
+            end
+            if cancelled() then break end
+
+            -- Foreground Dirt terlebih dahulu.
             if tileValue(world, "fg", x, y) == dirtId then
-                breakCell(world, dirtId, { x = x, y = y }, function()
-                    return token ~= dfToken or not dfEnabled
-                end)
+                breakCell(world, dirtId, { x = x, y = y }, cancelled)
             end
 
-            -- Setelah foreground kosong, break Cave Background pada koordinat
-            -- yang sama. breakCell sendiri memastikan foreground sudah kosong.
+            -- Setelah foreground kosong, Cave Background pada koordinat yang sama.
             if caveBackgroundId
-                and tileValue(world, "bg", x, y) == caveBackgroundId
-                and tileValue(world, "fg", x, y) == 0 then
-                breakCell(world, caveBackgroundId, { x = x, y = y }, function()
-                    return token ~= dfToken or not dfEnabled
-                end)
+                and tileValue(world, "fg", x, y) == 0
+                and tileValue(world, "bg", x, y) == caveBackgroundId then
+                breakCell(world, caveBackgroundId, { x = x, y = y }, cancelled)
             end
+
             x += fromRight and -1 or 1
         end
-        task.wait(0.08)
+
+        -- Lane selesai: lane berikutnya dimulai dari sisi seberang.
+        nextFromRight = not nextFromRight
+        task.wait(0.05)
     end
 
     if token == dfToken then
         dfEnabled = false
         dfButton.Text = "START AUTO DF"
         dfButton.BackgroundColor3 = C.green
-        dfStatus.Text = "COMPLETE"
+        dfStatus.Text = cancelled() and "STOPPED" or "COMPLETE"
     end
 end
 
