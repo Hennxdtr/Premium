@@ -832,11 +832,14 @@ end
 
 -- Ambil drop dengan perpindahan khusus item saja.
 -- Beri jeda antar-target agar perpindahan tidak bertubi-tubi.
-local DROP_TP_DELAY = 0.35
+local DROP_TP_DELAY = 0.55
 local DROP_WAIT = 0.25
+local DROP_RETURN_DELAY = 0.35
+
 local function pickDrops(world, before, cancel)
     local ok, list = pcall(world.dropList)
     if not ok or type(list) ~= "table" then return end
+
     local targets = {}
     for _, d in ipairs(list) do
         if (before == nil or not before[d]) and type(d.x) == "number"
@@ -848,20 +851,30 @@ local function pickDrops(world, before, cancel)
     for _, d in ipairs(targets) do
         if cancel and cancel() then return end
         if table.find(list, d) then
+            -- Simpan posisi sebelum mengejar drop agar TP tidak menggeser
+            -- titik pusat Auto Farm ke lokasi item.
+            local returnX, returnY = getTile()
             local tx, ty = math.floor(d.x), math.floor(d.y)
-            if inBounds(world, tx, ty) and type(world.goTo) == "function" then
-                -- goTo dipanggil langsung hanya saat mengambil drop.
-                -- Navigasi Auto Farm tetap memakai jalur jalan kaki.
-                local moved = pcall(world.goTo, tx, ty)
-                if moved then
+
+            if returnX and returnY and inBounds(world, tx, ty)
+                and type(world.goTo) == "function" then
+                local moved, result = pcall(world.goTo, tx, ty)
+                if moved and result ~= false then
                     task.wait(DROP_WAIT)
                     local t0 = os.clock()
                     while not (cancel and cancel())
-                        and table.find(list, d) and os.clock() - t0 < 0.7 do
+                        and table.find(list, d) and os.clock() - t0 < 0.8 do
                         task.wait(0.05)
+                    end
+
+                    -- Kembali ke tile tempat pemain berada sebelum TP item.
+                    if inBounds(world, returnX, returnY) then
+                        pcall(world.goTo, returnX, returnY)
+                        task.wait(DROP_RETURN_DELAY)
                     end
                 end
             end
+
             if cancel and cancel() then return end
             task.wait(DROP_TP_DELAY)
         end
@@ -889,9 +902,11 @@ local function farmCells(world, anchor)
             local r, c = key:match("^(-?%d+),(-?%d+)$")
             local dy, dx = tonumber(r), tonumber(c)
             if dx and dy then
-                -- Kolom grid mengikuti arah hadap pemain:
-                -- kolom kiri/kanan tetap konsisten meski pemain berbalik.
-                local x, y = anchor.x + (dx * (anchor.facing or 1)), anchor.y + dy
+                -- Kolom grid mengikuti arah hadap pemain.
+                -- Koreksi dari video: pulihkan arah horizontal dan geser
+                -- seluruh mapping satu tile ke bawah untuk menghilangkan
+                -- offset vertikal yang terlihat terlalu tinggi.
+                local x, y = anchor.x + (dx * (anchor.facing or 1)), anchor.y + dy + 1
                 if inBounds(world, x, y) then table.insert(cells, { x = x, y = y }) end
             end
         end
@@ -934,28 +949,19 @@ local function farmLoop(token, anchor, id)
         if not world then return "NO WORLD" end
         if worldName() ~= anchor.world then return "PINDAH WORLD" end
 
-        -- Ikuti posisi pemain saat ini. Anchor tidak dikunci ke lokasi awal.
-        local px, py, facing = getGrid()
-        if not px then return "NO POS" end
-        anchor.x = math.floor(px)
-        anchor.y = math.floor(py - 0.475)
-        anchor.facing = facing or anchor.facing
+        -- Anchor karakter dikunci saat Auto Farm ON.
+        -- Grid, PLACE, dan BREAK selalu memakai anchor ini.
+        -- Perpindahan karakter tidak menggeser area farming.
 
         local layer = layerOf(id)
         local cells = farmCells(world, anchor)
         if #cells == 0 then return "GRID?" end
 
-        local function movedFromAnchor()
-            local cx, cy = getTile()
-            return not cx or cx ~= anchor.x or cy ~= anchor.y
-        end
-
-        -- 1) PLACE. Jika pemain bergerak manual, hentikan batch dan hitung grid baru.
+        -- 1) PLACE. Gunakan grid yang dikunci saat Auto Farm dinyalakan.
         status.Text = "PLACE"
         local outOfItem = false
         for _, cell in ipairs(cells) do
             if cancel() then break end
-            if movedFromAnchor() then break end
             if tileValue(world, layer, cell.x, cell.y) == 0 then
                 local have = countItem(id)
                 if have ~= nil and have <= 0 then outOfItem = true break end
@@ -964,30 +970,28 @@ local function farmLoop(token, anchor, id)
             end
         end
         if cancel() then break end
-        if movedFromAnchor() then task.wait(0.1) continue end
         task.wait(0.35)
 
         -- 2) BREAK
         status.Text = "BREAK"
         local before = dropSet(world)
         for _, cell in ipairs(cells) do
-            if cancel() or movedFromAnchor() then break end
+            if cancel() then break end
             if tileValue(world, layer, cell.x, cell.y) == id then
                 breakCell(world, id, cell, function()
-                    return cancel() or movedFromAnchor()
+                    return cancel()
                 end)
             end
         end
         if cancel() then break end
-        if movedFromAnchor() then task.wait(0.1) continue end
 
         -- 3) AUTO COLLECT. Navigasi hanya berjalan kaki, tidak ada teleport/fly.
         if collectEnabled then
             status.Text = "COLLECT"
             task.wait(0.3)
             pickDrops(world, before, cancel)
-            -- Jangan kembali paksa ke anchor lama. Siklus berikutnya mengambil
-            -- posisi pemain terbaru sebagai pusat grid.
+            -- pickDrops mengembalikan pemain ke tile sebelum mengambil item;
+            -- anchor Auto Farm tetap terkunci pada posisi awal.
         end
 
         if outOfItem then return "HABIS" end
@@ -1019,13 +1023,17 @@ local function startFarm()
         warn("[HennHub] Fungsi hit/setTile tidak ditemukan (executor perlu getgc + debug.info)")
         setFarmUI(false, "NO FUNC") return
     end
+    ensureReach(reach)
+
+    -- Ambil posisi karakter tepat ketika Auto Farm mulai ON.
+    -- Semua koordinat grid, PLACE, dan BREAK memakai anchor yang sama
+    -- sampai Auto Farm dimatikan. Tidak mengikuti perpindahan karakter
+    -- selama proses masih ON.
     local x, y, facing = getGrid()
     if not x then
-        warn("[HennHub] Posisi tidak terdeteksi")
+        warn("[HennHub] Posisi karakter tidak terdeteksi")
         setFarmUI(false, "NO POS") return
     end
-
-    ensureReach(reach)
 
     local anchor = {
         x = math.floor(x),
@@ -1048,7 +1056,7 @@ local function startFarm()
     end)
 end
 
--- pantau toggle Auto Farm dari UI
+-- Pantau toggle Auto Farm. startFarm() menangkap anchor baru setiap ON.
 task.spawn(function()
     while true do
         if farmEnabled and not farmRunning then
@@ -1081,5 +1089,115 @@ task.spawn(function()
         end
     end
 end)
+
+
+----------------------------------------------------------------------
+-- CHAT COMMANDS: /gs (GrowScan) dan /bid (Block ID)
+----------------------------------------------------------------------
+local function commandMessage(message)
+    message = tostring(message or "")
+    pcall(function()
+        game:GetService("StarterGui"):SetCore("ChatMakeSystemMessage", {
+            Text = "[HennHub] " .. message,
+            Color = C.text,
+            Font = Enum.Font.Gotham,
+            TextSize = 16,
+        })
+    end)
+    print("[HennHub] " .. message)
+end
+
+local function growScan()
+    local world, db = getWorld(), getDB()
+    if not world or not db then
+        commandMessage("World atau ItemDB belum siap.")
+        return
+    end
+
+    local counts = {}
+    local function add(layer, id)
+        if type(id) ~= "number" or id == 0 then return end
+        local item = db[id]
+        local name = type(item) == "table" and item.name or ("Unknown")
+        local key = tostring(id)
+        if not counts[key] then
+            counts[key] = { id = id, name = tostring(name), fg = 0, bg = 0 }
+        end
+        counts[key][layer] += 1
+    end
+
+    for _, layer in ipairs({"fg", "bg"}) do
+        local grid = rawget(world, layer)
+        if type(grid) == "table" then
+            for _, row in pairs(grid) do
+                if type(row) == "table" then
+                    for _, id in pairs(row) do add(layer, id) end
+                end
+            end
+        end
+    end
+
+    local results = {}
+    for _, entry in pairs(counts) do table.insert(results, entry) end
+    table.sort(results, function(a, b)
+        local ta, tb = a.fg + a.bg, b.fg + b.bg
+        if ta == tb then return a.id < b.id end
+        return ta > tb
+    end)
+
+    if #results == 0 then
+        commandMessage("GrowScan selesai: tidak ada block ditemukan di world ini.")
+        return
+    end
+
+    commandMessage("GrowScan " .. tostring(world.name or "World") .. " selesai. Jenis block: " .. #results)
+    local limit = math.min(#results, 30)
+    for i = 1, limit do
+        local e = results[i]
+        commandMessage(string.format("%s | ID: %d | FG: %d | BG: %d | Total: %d", e.name, e.id, e.fg, e.bg, e.fg + e.bg))
+    end
+    if #results > limit then
+        commandMessage("Dan " .. (#results - limit) .. " jenis lainnya. Lihat Output/console untuk daftar lengkap.")
+    end
+end
+
+local function blockIdLookup(query)
+    query = tostring(query or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if query == "" then
+        query = blockInput.Text
+    end
+    if query == "" then
+        commandMessage("Gunakan /bid nama_item atau /bid angka_id.")
+        return
+    end
+
+    local id = resolveId(query)
+    if not id then
+        commandMessage("Item tidak ditemukan: " .. query)
+        return
+    end
+
+    local db = getDB()
+    local item = db and db[id]
+    local name = type(item) == "table" and item.name or "Unknown"
+    blockInput.Text = tostring(id)
+    commandMessage("Item: " .. tostring(name) .. " | Block ID: " .. tostring(id) .. " (sudah dimasukkan ke kolom Block ID)")
+end
+
+local function handleHennHubCommand(raw)
+    local command, args = tostring(raw or ""):match("^%s*(/%S+)%s*(.-)%s*$")
+    if not command then return end
+    command = command:lower()
+    if command == "/gs" then
+        task.spawn(growScan)
+    elseif command == "/bid" then
+        blockIdLookup(args)
+    end
+end
+
+-- Player.Chatted kompatibel dengan chat klasik; TextChatService meneruskan
+-- pesan lokal melalui event Chatted pada LocalPlayer di client.
+player.Chatted:Connect(handleHennHubCommand)
+
 
 print("HennHub Auto Farm UI Loaded")
