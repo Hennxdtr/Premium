@@ -1419,22 +1419,22 @@ local function runAutoDF(token)
             if cancelled() then break end
         end
 
-        -- Sebelum TP ke tile tepi, buka dua tile vertikal pada sisi masuk:
-        -- untuk lane Y, bersihkan Y-1 dan Y di X=1 atau X=98.
-        -- Contoh awal Y=38: bersihkan Y=37 dan Y=38 terlebih dahulu.
+        -- Sebelum TP ke tile tepi lane, buka dua tile vertikal di luar lane:
+        -- X=0 atau X=99 (bukan X=1 atau X=98).
+        -- Contoh awal Y=38: bersihkan (X=99/0, Y=37) dan (X=99/0, Y=38).
         for _, edgeY in ipairs({ y - 1, y }) do
             if cancelled() then break end
             if edgeY >= 0 and edgeY < world.h then
-                if tileValue(world, "fg", targetX, edgeY) == dirtId then
-                    dfStatus.Text = string.format("OPEN EDGE DIRT X=%d Y=%d", targetX, edgeY)
-                    breakCell(world, dirtId, { x = targetX, y = edgeY }, cancelled)
+                if tileValue(world, "fg", approachX, edgeY) == dirtId then
+                    dfStatus.Text = string.format("OPEN EDGE DIRT X=%d Y=%d", approachX, edgeY)
+                    breakCell(world, dirtId, { x = approachX, y = edgeY }, cancelled)
                 end
                 if cancelled() then break end
                 if caveBackgroundId
-                    and tileValue(world, "fg", targetX, edgeY) == 0
-                    and tileValue(world, "bg", targetX, edgeY) == caveBackgroundId then
-                    dfStatus.Text = string.format("OPEN EDGE CAVE X=%d Y=%d", targetX, edgeY)
-                    breakCell(world, caveBackgroundId, { x = targetX, y = edgeY }, cancelled)
+                    and tileValue(world, "fg", approachX, edgeY) == 0
+                    and tileValue(world, "bg", approachX, edgeY) == caveBackgroundId then
+                    dfStatus.Text = string.format("OPEN EDGE CAVE X=%d Y=%d", approachX, edgeY)
+                    breakCell(world, caveBackgroundId, { x = approachX, y = edgeY }, cancelled)
                 end
             end
         end
@@ -1495,7 +1495,8 @@ local function runAutoDF(token)
         local nextY = y + 2
         local edgeBlocked = false
         if not cancelled() and nextY < world.h then
-            local entryX = fromRight and minX or maxX
+            -- Lane berikutnya masuk dari sisi seberang, pada X=0 atau X=99.
+            local entryX = fromRight and (minX - 1) or (maxX + 1)
             local entryYs = { nextY - 1, nextY }
 
             for _, edgeY in ipairs(entryYs) do
