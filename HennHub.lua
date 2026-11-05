@@ -1425,6 +1425,37 @@ local function runAutoDF(token)
         return not cancelled()
     end
 
+    -- Lane pair: kirim punch ke kedua koordinat dalam siklus yang sama.
+    -- Tidak menunggu tile pertama hancur sebelum memukul tile kedua.
+    local function breakLanePair(cells)
+        local startedAt = os.clock()
+        while not cancelled() do
+            local pending = false
+            for _, cell in ipairs(cells) do
+                local x, y = cell.x, cell.y
+                if x >= 0 and x < world.w and y >= 0 and y < world.h then
+                    local fg = tileValue(world, "fg", x, y)
+                    if idInList(fg, dirtIds) or idInList(fg, caveIds)
+                        or idInList(fg, lavaIds) or idInList(fg, rockIds) then
+                        pending = true
+                        pcall(hit, x, y, true)
+                    elseif fg == 0 then
+                        local bg = tileValue(world, "bg", x, y)
+                        if idInList(bg, dirtIds) or idInList(bg, caveIds)
+                            or idInList(bg, lavaIds) or idInList(bg, rockIds) then
+                            pending = true
+                            pcall(hit, x, y, true)
+                        end
+                    end
+                end
+            end
+            if not pending then return true end
+            if os.clock() - startedAt > 10 then return false end
+            task.wait(DF_STEP_DELAY)
+        end
+        return false
+    end
+
     -- Awal lane: buka dua tile di sisi start. Setelah lane selesai,
     -- buka tiga tile vertikal di pojok seberang untuk jalur lane berikutnya.
     local function clearEdge(edgeX, y, count)
@@ -1511,7 +1542,7 @@ local function runAutoDF(token)
                 table.insert(batchCells, { x = secondX, y = y })
             end
 
-            if not breakBatch(batchCells) then break end
+            if not breakLanePair(batchCells) then break end
             -- Geser satu tile saja: pasangan berikutnya overlap satu koordinat,
             -- supaya tile yang dekat karakter tidak tertinggal saat hancur lebih dulu.
             x += direction
