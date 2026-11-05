@@ -1436,12 +1436,20 @@ local function runAutoDF(token)
     end
 
     local nextFromRight = (currentX - minX) >= (maxX - currentX)
+    -- Tandai setiap lane yang sudah dilewati agar tidak pernah diproses ulang.
+    -- Urutan Y tetap satu arah: startY, startY+2, startY+4, dan seterusnya.
+    local completedLanes = {}
 
     for y = startY, world.h - 1, 2 do
         if cancelled() then break end
 
+        if completedLanes[y] then
+            continue
+        end
+
         if not hasTargetOnLane(y) then
-            dfStatus.Text = string.format("SKIP Y=%d (NO TARGET)", y)
+            completedLanes[y] = true
+            dfStatus.Text = string.format("SKIP Y=%d (ALREADY CLEAR)", y)
             task.wait(0.04)
             continue
         end
@@ -1489,33 +1497,33 @@ local function runAutoDF(token)
             end
             if cancelled() then break end
 
-            local fg = tileValue(world, "fg", x, y)
-            if idInList(fg, dirtIds) or idInList(fg, caveIds)
-                or idInList(fg, lavaIds) or idInList(fg, rockIds) then
-                breakCell(world, fg, { x = x, y = y }, cancelled, DF_STEP_DELAY)
+            -- Punch dua tile berurutan dalam satu batch, bukan satu per satu.
+            -- breakTargetAt menangani foreground dahulu lalu background di tiap koordinat.
+            local direction = fromRight and -1 or 1
+            local batchCells = { { x = x, y = y } }
+            local secondX = x + direction
+            if (fromRight and secondX >= minX) or ((not fromRight) and secondX <= maxX) then
+                table.insert(batchCells, { x = secondX, y = y })
             end
 
-            -- Periksa background setelah foreground kosong.
-            if tileValue(world, "fg", x, y) == 0 then
-                local bg = tileValue(world, "bg", x, y)
-                if idInList(bg, dirtIds) or idInList(bg, caveIds)
-                    or idInList(bg, lavaIds) or idInList(bg, rockIds) then
-                    breakCell(world, bg, { x = x, y = y }, cancelled, DF_STEP_DELAY)
-                end
-            end
-
-            x += fromRight and -1 or 1
+            if not breakBatch(batchCells) then break end
+            x += direction * #batchCells
             task.wait(DF_STEP_DELAY)
         end
 
         if cancelled() then break end
 
-        -- Di ujung lane (X=1/98), periksa pojok sisi seberang.
-        -- Buka Y yang sedang dikerjakan beserta dua tile di bawahnya.
+        -- Di ujung lane (X=1/98), bersihkan kolom pojok di sisi luar.
+        -- Lima tile vertikal: dua di atas Y, Y itu sendiri, dan dua di bawahnya.
+        -- Ini membuka ruang di samping karakter agar tidak rollback saat pindah lane.
         local oppositeEdgeX = fromRight and leftEdgeX or rightEdgeX
-        dfStatus.Text = string.format("CHECK CORNER X=%d Y=%d..%d", oppositeEdgeX, y, y + 2)
-        if not clearEdge(oppositeEdgeX, y, 3) then break end
+        local cornerStartY = math.max(0, y - 2)
+        dfStatus.Text = string.format("CHECK CORNER X=%d Y=%d..%d", oppositeEdgeX, cornerStartY, math.min(world.h - 1, y + 2))
+        if not clearEdge(oppositeEdgeX, cornerStartY, 5) then break end
 
+        -- Lane ini selesai. Jangan kembali ke Y ini walaupun ada perubahan tile
+        -- di pojok saat membuka jalur untuk lane berikutnya.
+        completedLanes[y] = true
         nextFromRight = not nextFromRight
         task.wait(0.05)
     end
