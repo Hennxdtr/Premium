@@ -1536,14 +1536,20 @@ local function runAutoDF(token)
         local fromRight = nextFromRight
         local standX = fromRight and maxX or minX
         local edgeX = fromRight and rightEdgeX or leftEdgeX
-        -- Sebelum masuk ke lane Y berikutnya, bersihkan tile penghalang
-        -- tepat di jalur masuk (X=1 atau X=98). Ini mencegah karakter
-        -- menembus tile lalu mengalami rollback saat mulai lane baru.
-        if y > startY then
-            dfStatus.Text = string.format("CLEAR ENTRY X=%d Y=%d", standX, y)
-            breakTargetAt(standX, y)
-            if cancelled() then break end
+        -- Lane pertama belum memiliki pemeriksaan pojok dari lane sebelumnya.
+        -- Jadi buka dulu 5 tile vertikal di sisi luar (X=0 atau X=99).
+        -- Untuk lane berikutnya, 5 tile ini sudah dibuka di akhir lane sebelumnya.
+        if y == startY then
+            local cornerStartY = math.max(0, y - 2)
+            dfStatus.Text = string.format("OPEN START CORNER X=%d Y=%d..%d", edgeX, cornerStartY, math.min(world.h - 1, y + 2))
+            if not clearEdge(edgeX, cornerStartY, 5) then break end
         end
+
+        -- Setelah 5 tile sisi luar terbuka, hancurkan tile tepat di jalur masuk
+        -- lane (X=1 atau X=98) pada Y yang akan dikerjakan.
+        dfStatus.Text = string.format("CLEAR ENTRY X=%d Y=%d", standX, y)
+        breakTargetAt(standX, y)
+        if cancelled() then break end
 
         dfStatus.Text = string.format("MOVE TO X=%d Y=%d", standX, y)
 
@@ -1561,11 +1567,6 @@ local function runAutoDF(token)
             end
         end
         if cancelled() then break end
-
-        -- Pada sisi awal, buka hanya dua tile: satu sejajar lane dan satu di atasnya.
-        -- Tile di bawah dibuka saat pemeriksaan pojok 5-tile setelah lane selesai.
-        dfStatus.Text = string.format("CLEAR START EDGE X=%d Y=%d..%d", edgeX, math.max(0, y - 1), y)
-        if not clearEdge(edgeX, y - 1, 2) then break end
 
         dfStatus.Text = string.format("FARMING Y=%d", y)
         local x = standX
