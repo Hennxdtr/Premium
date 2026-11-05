@@ -595,7 +595,11 @@ dfButton.TextSize = 11
 local dfStopHint = label(dfPage,"Matikan tombol untuk menghentikan proses.",UDim2.new(1,-4,0,22),UDim2.new(),10,C.muted)
 dfStopHint.TextXAlignment = Enum.TextXAlignment.Center
 
--- MISC: GrowScan toggle + item ID lookup
+-- MISC: Anti Lava, GrowScan toggle + item ID lookup
+-- Forward declarations agar callback UI mengakses local function yang benar.
+local antiLavaOn = false
+local startAntiLava, stopAntiLava
+
 local function miscSection(text)
     local box = Instance.new("Frame")
     box.Size = UDim2.new(1,-2,0,27)
@@ -606,6 +610,32 @@ local function miscSection(text)
     heading.Font = Enum.Font.GothamBold
     heading.TextXAlignment = Enum.TextXAlignment.Center
 end
+
+miscSection("ANTI LAVA")
+local antiLavaButton = button(miscPage,"ANTI LAVA: OFF",UDim2.new(1,-2,0,36),UDim2.new(),C.green)
+antiLavaButton.TextSize = 11
+local antiLavaHint = label(miscPage,"Mencegah efek hazard seperti lava, spike, dan api.",UDim2.new(1,-4,0,27),UDim2.new(),10,C.muted)
+antiLavaHint.TextXAlignment = Enum.TextXAlignment.Center
+
+local function refreshAntiLavaButton()
+    antiLavaButton.Text = antiLavaOn and "ANTI LAVA: ON" or "ANTI LAVA: OFF"
+    antiLavaButton.BackgroundColor3 = antiLavaOn and C.red or C.green
+end
+
+antiLavaButton.Activated:Connect(function()
+    if antiLavaOn then
+        stopAntiLava()
+        antiLavaHint.Text = "Anti Lava dimatikan. Pengaturan hazard dipulihkan."
+    else
+        local ok, reason = startAntiLava()
+        if ok then
+            antiLavaHint.Text = "Aktif: perlindungan hazard lokal dinyalakan."
+        else
+            antiLavaHint.Text = reason or "Anti Lava gagal diaktifkan."
+        end
+    end
+    refreshAntiLavaButton()
+end)
 
 miscSection("GROWSCAN")
 local growScanButton = button(miscPage,"OPEN GROWSCAN",UDim2.new(1,-2,0,36),UDim2.new(),C.green)
@@ -769,6 +799,88 @@ local function getDB()
     end)
     if ok and type(r) == "table" then itemDB = r end
     return itemDB
+end
+
+----------------------------------------------------------------------
+-- ANTI LAVA / GOD MODE (mekanisme yang diadaptasi dari CIT)
+-- Menonaktifkan flag bahaya pada ItemDB dan menahan handler Burned lokal.
+----------------------------------------------------------------------
+local antiLavaSaved = {}
+local antiLavaConnections = {}
+
+stopAntiLava = function()
+    if not antiLavaOn then return false end
+
+    for _, saved in ipairs(antiLavaSaved) do
+        pcall(function()
+            if saved.readonly and setreadonly then setreadonly(saved.item, false) end
+            rawset(saved.item, saved.key, saved.value)
+            if saved.readonly and setreadonly then setreadonly(saved.item, true) end
+        end)
+    end
+    table.clear(antiLavaSaved)
+
+    for _, connection in ipairs(antiLavaConnections) do
+        pcall(function() connection:Enable() end)
+    end
+    table.clear(antiLavaConnections)
+
+    antiLavaOn = false
+    return true
+end
+
+startAntiLava = function()
+    if antiLavaOn then return true end
+
+    local db = getDB()
+    if not db then
+        return false, "ItemDB game tidak ditemukan."
+    end
+
+    table.clear(antiLavaSaved)
+    table.clear(antiLavaConnections)
+
+    for _, item in pairs(db) do
+        if type(item) == "table" then
+            for _, key in ipairs({ "hurts", "deadly" }) do
+                local oldValue = rawget(item, key)
+                if oldValue then
+                    local wasReadonly = false
+                    if type(isreadonly) == "function" then
+                        local okReadonly, value = pcall(isreadonly, item)
+                        wasReadonly = okReadonly and value == true
+                    end
+                    table.insert(antiLavaSaved, {
+                        item = item,
+                        key = key,
+                        value = oldValue,
+                        readonly = wasReadonly,
+                    })
+                    pcall(function()
+                        if setreadonly then setreadonly(item, false) end
+                        rawset(item, key, false)
+                        if wasReadonly and setreadonly then setreadonly(item, true) end
+                    end)
+                end
+            end
+        end
+    end
+
+    local remotes = RS:FindFirstChild("WorldRemotes")
+    local burned = remotes and remotes:FindFirstChild("Burned")
+    if burned and type(getconnections) == "function" then
+        local ok, connections = pcall(getconnections, burned.OnClientEvent)
+        if ok and type(connections) == "table" then
+            for _, connection in ipairs(connections) do
+                if pcall(function() connection:Disable() end) then
+                    table.insert(antiLavaConnections, connection)
+                end
+            end
+        end
+    end
+
+    antiLavaOn = true
+    return true
 end
 
 -- posisi tile pemain
@@ -1956,4 +2068,4 @@ end)
 ----------------------------------------------------------------------
 
 
-print("HennHub loaded | Misc: GrowScan + Check Item ID")
+print("HennHub loaded | Misc: Anti Lava + GrowScan + Check Item ID")
