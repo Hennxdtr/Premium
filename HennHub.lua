@@ -1128,7 +1128,7 @@ local function findPath(sx, sy, tx, ty)
     return path
 end
 
-function Nav.Walk(tx, ty, cancel)
+function Nav.Walk(tx, ty, cancel, stepDelay)
     local world = getWorld()
     local sx, sy = getTile()
     if not world or not sx or not inBounds(world, tx, ty) then return false end
@@ -1144,7 +1144,7 @@ function Nav.Walk(tx, ty, cancel)
         count += 1
         if count >= NAV_SPEED then
             count = 0
-            task.wait(NAV_STEP_DELAY)
+            task.wait(stepDelay or NAV_STEP_DELAY)
         end
     end
     return true
@@ -1385,7 +1385,8 @@ local function runAutoDF(token)
     -- Lane kosong dilewati tanpa mengubah arah zig-zag berikutnya.
     local nextFromRight = (currentX - minX) >= (maxX - currentX)
     local MOVE_NEAR_THRESHOLD = 3
-    local DF_TP_COOLDOWN = 0.45
+    local DF_WALK_DELAY = 0.45 -- jeda per tile, dibuat pelan untuk mengurangi rollback
+    local DF_TP_COOLDOWN = 0.85 -- beri waktu server menerima perpindahan
 
     for y = startY, world.h - 1, 2 do
         if cancelled() then break end
@@ -1401,8 +1402,10 @@ local function runAutoDF(token)
         local fromRight = nextFromRight
 
         local startEdge = fromRight and maxX or minX
-        local outsideX = fromRight and (maxX + 1) or (minX - 1)
-        local targetX = fromRight and maxX or minX
+        -- Karakter ditempatkan tepat di batas area: X=98 atau X=1.
+        -- Jangan memakai koordinat luar world (99 / 0).
+        local outsideX = startEdge
+        local targetX = startEdge
         dfStatus.Text = string.format("PREPARE Y=%d", y)
 
         -- Jika jauh dari pojok, jalan cepat sampai tile tepi terlebih dahulu.
@@ -1410,7 +1413,7 @@ local function runAutoDF(token)
         local nowX, nowY = getTile()
         local distance = nowX and (math.abs(nowX - outsideX) + math.abs((nowY or y) - y)) or math.huge
         if distance > MOVE_NEAR_THRESHOLD then
-            local walked = Nav.Walk(startEdge, y, cancelled)
+            local walked = Nav.Walk(startEdge, y, cancelled, DF_WALK_DELAY)
             if not walked and not cancelled() then
                 dfStatus.Text = "WALK TO EDGE FAILED"
                 break
@@ -1438,11 +1441,12 @@ local function runAutoDF(token)
         while (fromRight and x >= minX) or ((not fromRight) and x <= maxX) do
             if cancelled() then break end
 
-            -- Berdiri di tile sebelah target, lalu berjalan cepat sambil punch.
-            local standX = x + (fromRight and 1 or -1)
+            -- Berdiri tepat pada koordinat tile yang sedang diproses.
+            -- Batas gerak tetap di dalam area X=1..98.
+            local standX = x
             local px, py = getTile()
             if not px or px ~= standX or py ~= y then
-                local moved = Nav.Walk(standX, y, cancelled)
+                local moved = Nav.Walk(standX, y, cancelled, DF_WALK_DELAY)
                 if not moved and not cancelled() then
                     -- Satu langkah langsung hanya sebagai fallback untuk tile tepi.
                     task.wait(DF_TP_COOLDOWN)
