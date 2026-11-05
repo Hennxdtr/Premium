@@ -1393,19 +1393,35 @@ local function runAutoDF(token)
 
     -- Pecahkan beberapa tile berdekatan secara paralel agar pojok lebih cepat terbuka.
     -- Background baru dipukul setelah foreground pada koordinat itu kosong.
+    local function isDFTarget(id)
+        return idInList(id, dirtIds) or idInList(id, caveIds)
+            or idInList(id, lavaIds) or idInList(id, rockIds)
+    end
+
+    -- Break berdasarkan layer yang benar-benar berisi tile, bukan layerOf(ID).
+    -- Ini penting untuk pojok X=0/99 karena ID khusus Lava/Rock bisa tidak
+    -- punya metadata background yang konsisten di ItemDB.
+    local function breakLayerAt(layer, x, y)
+        local startedAt = os.clock()
+        while not cancelled() do
+            local currentId = tileValue(world, layer, x, y)
+            if not isDFTarget(currentId) then return true end
+            if os.clock() - startedAt > 10 then return false end
+            pcall(hit, x, y, true)
+            task.wait(DF_STEP_DELAY)
+        end
+        return false
+    end
+
     local function breakTargetAt(x, y)
         if cancelled() or y < 0 or y >= world.h or x < 0 or x >= world.w then return end
+        -- Foreground harus dibersihkan lebih dulu.
+        breakLayerAt("fg", x, y)
+        if cancelled() then return end
         local fg = tileValue(world, "fg", x, y)
-        if idInList(fg, dirtIds) or idInList(fg, caveIds)
-            or idInList(fg, lavaIds) or idInList(fg, rockIds) then
-            breakCell(world, fg, { x = x, y = y }, cancelled, DF_STEP_DELAY)
-        end
-        if cancelled() or tileValue(world, "fg", x, y) ~= 0 then return end
-        local bg = tileValue(world, "bg", x, y)
-        if idInList(bg, dirtIds) or idInList(bg, caveIds)
-            or idInList(bg, lavaIds) or idInList(bg, rockIds) then
-            breakCell(world, bg, { x = x, y = y }, cancelled, DF_STEP_DELAY)
-        end
+        -- Nil dan 0 sama-sama dianggap kosong agar background pojok tidak terlewat.
+        if fg ~= nil and fg ~= 0 then return end
+        breakLayerAt("bg", x, y)
     end
 
     local function breakBatch(cells)
@@ -1520,6 +1536,15 @@ local function runAutoDF(token)
         local fromRight = nextFromRight
         local standX = fromRight and maxX or minX
         local edgeX = fromRight and rightEdgeX or leftEdgeX
+        -- Sebelum masuk ke lane Y berikutnya, bersihkan tile penghalang
+        -- tepat di jalur masuk (X=1 atau X=98). Ini mencegah karakter
+        -- menembus tile lalu mengalami rollback saat mulai lane baru.
+        if y > startY then
+            dfStatus.Text = string.format("CLEAR ENTRY X=%d Y=%d", standX, y)
+            breakTargetAt(standX, y)
+            if cancelled() then break end
+        end
+
         dfStatus.Text = string.format("MOVE TO X=%d Y=%d", standX, y)
 
         local px, py = getTile()
