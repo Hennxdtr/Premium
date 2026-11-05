@@ -1536,15 +1536,6 @@ local function runAutoDF(token)
         local fromRight = nextFromRight
         local standX = fromRight and maxX or minX
         local edgeX = fromRight and rightEdgeX or leftEdgeX
-        -- Lane pertama belum memiliki pemeriksaan pojok dari lane sebelumnya.
-        -- Jadi buka dulu 5 tile vertikal di sisi luar (X=0 atau X=99).
-        -- Untuk lane berikutnya, 5 tile ini sudah dibuka di akhir lane sebelumnya.
-        if y == startY then
-            local cornerStartY = math.max(0, y - 2)
-            dfStatus.Text = string.format("OPEN START CORNER X=%d Y=%d..%d", edgeX, cornerStartY, math.min(world.h - 1, y + 2))
-            if not clearEdge(edgeX, cornerStartY, 5) then break end
-        end
-
         dfStatus.Text = string.format("MOVE TO X=%d Y=%d", standX, y)
 
         local px, py = getTile()
@@ -1561,6 +1552,11 @@ local function runAutoDF(token)
             end
         end
         if cancelled() then break end
+
+        -- Pada sisi awal, buka hanya dua tile: satu sejajar lane dan satu di atasnya.
+        -- Tile di bawah dibuka saat pemeriksaan pojok 5-tile setelah lane selesai.
+        dfStatus.Text = string.format("CLEAR START EDGE X=%d Y=%d..%d", edgeX, math.max(0, y - 1), y)
+        if not clearEdge(edgeX, y - 1, 2) then break end
 
         dfStatus.Text = string.format("FARMING Y=%d", y)
         local x = standX
@@ -1601,12 +1597,28 @@ local function runAutoDF(token)
                 local leadingCell = batchCells[1]
                 if not breakLanePair(batchCells, leadingCell) then break end
             end
-            -- Geser player satu tile; dua kolom target berikutnya overlap satu kolom.
+
+            -- Setelah player bergeser, tile yang tadi ditempati menjadi target.
+            -- Ini memastikan kolom batas dalam X=1/X=98 tidak terlewat.
+            local previousX = x
             x += direction
+            if x >= minX and x <= maxX and previousX >= minX and previousX <= maxX then
+                ensureLaneWorker(previousX, y)
+            end
             task.wait(DF_STEP_DELAY)
         end
 
         if cancelled() then break end
+
+        -- Kolom tempat player berhenti di ujung lane juga harus di-break.
+        -- Worker dijalankan setelah pergerakan lane selesai agar X=1/X=98 tidak terlewat.
+        local endpointX = fromRight and minX or maxX
+        ensureLaneWorker(endpointX, y)
+        local endpointStarted = os.clock()
+        while not cancelled() and laneTargetIdAt(endpointX, y) do
+            if os.clock() - endpointStarted > 10 then break end
+            task.wait(0.03)
+        end
 
         -- Di ujung lane (X=1/98), bersihkan kolom pojok di sisi luar.
         -- Lima tile vertikal: dua di atas Y, Y itu sendiri, dan dua di bawahnya.
@@ -1615,14 +1627,6 @@ local function runAutoDF(token)
         local cornerStartY = math.max(0, y - 2)
         dfStatus.Text = string.format("CHECK CORNER X=%d Y=%d..%d", oppositeEdgeX, cornerStartY, math.min(world.h - 1, y + 2))
         if not clearEdge(oppositeEdgeX, cornerStartY, 5) then break end
-
-        -- Setelah 5 tile vertikal di pojok luar dibersihkan, hancurkan
-        -- tile pada lane Y yang sama di sisi dalam (X=1 atau X=98).
-        -- Setelah itu barulah loop turun ke Y berikutnya.
-        local nextInnerX = fromRight and minX or maxX
-        dfStatus.Text = string.format("CLEAR CORNER ENTRY X=%d Y=%d", nextInnerX, y)
-        breakTargetAt(nextInnerX, y)
-        if cancelled() then break end
 
         -- Lane ini selesai. Jangan kembali ke Y ini walaupun ada perubahan tile
         -- di pojok saat membuka jalur untuk lane berikutnya.
