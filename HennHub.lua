@@ -1542,7 +1542,10 @@ local function runAutoDF(token)
                 table.insert(batchCells, { x = secondX, y = y })
             end
 
-            if not breakLanePair(batchCells) then break end
+            -- Dua worker terpisah menangani dua koordinat dalam batch yang sama.
+            -- Keduanya mulai melalui task.spawn sebelum breakBatch menunggu hasilnya.
+            -- Jadi karakter tetap satu, tetapi dua tile diproses paralel.
+            if not breakBatch(batchCells) then break end
             -- Geser satu tile saja: pasangan berikutnya overlap satu koordinat,
             -- supaya tile yang dekat karakter tidak tertinggal saat hancur lebih dulu.
             x += direction
