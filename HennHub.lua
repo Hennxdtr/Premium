@@ -1335,12 +1335,13 @@ local function runAutoDF(token)
         return
     end
 
-    -- Cari berdasarkan nama item tanpa mengunci layer fg/bg.
-    -- Di beberapa versi ItemDB, Lava/Rock bisa tercatat sebagai background.
+    -- Dirt dan Cave dicari dari ItemDB; Lava/Rock memakai ID yang sudah dikonfirmasi.
+    -- Pemeriksaan target tetap mencakup foreground dan background.
     local dirtIds = findBlockIds(db, "dirt")
     local caveIds = findBlockIds(db, "cave")
-    local lavaIds = findBlockIds(db, "lava")
-    local rockIds = findBlockIds(db, "rock")
+    -- ID Lava dan Rock dikonfirmasi langsung: Lava=4, Rock=10.
+    local lavaIds = { 4 }
+    local rockIds = { 10 }
     local hit = findGameFn("hit")
     if #dirtIds == 0 or not hit then
         dfStatus.Text = "DIRT / HIT NOT FOUND"
@@ -1390,23 +1391,48 @@ local function runAutoDF(token)
     local DF_STEP_DELAY = 0.25
     local DF_TP_COOLDOWN = 0.45
 
-    -- Buka dua tile vertikal di sisi luar lane (X=0 atau X=99).
-    -- Karakter tetap berhenti di tile dalam, yaitu X=1 atau X=98.
-    local function clearEdge(edgeX, y)
-        for _, edgeY in ipairs({ y - 1, y }) do
-            if cancelled() then return false end
-            if edgeY >= 0 and edgeY < world.h then
-                local edgeFg = tileValue(world, "fg", edgeX, edgeY)
-                if idInList(edgeFg, dirtIds) then
-                    breakCell(world, edgeFg, { x = edgeX, y = edgeY }, cancelled, DF_STEP_DELAY)
-                end
-                local edgeBg = tileValue(world, "bg", edgeX, edgeY)
-                if tileValue(world, "fg", edgeX, edgeY) == 0 and idInList(edgeBg, caveIds) then
-                    breakCell(world, edgeBg, { x = edgeX, y = edgeY }, cancelled, DF_STEP_DELAY)
-                end
+    -- Pecahkan beberapa tile berdekatan secara paralel agar pojok lebih cepat terbuka.
+    -- Background baru dipukul setelah foreground pada koordinat itu kosong.
+    local function breakTargetAt(x, y)
+        if cancelled() or y < 0 or y >= world.h or x < 0 or x >= world.w then return end
+        local fg = tileValue(world, "fg", x, y)
+        if idInList(fg, dirtIds) or idInList(fg, caveIds)
+            or idInList(fg, lavaIds) or idInList(fg, rockIds) then
+            breakCell(world, fg, { x = x, y = y }, cancelled, DF_STEP_DELAY)
+        end
+        if cancelled() or tileValue(world, "fg", x, y) ~= 0 then return end
+        local bg = tileValue(world, "bg", x, y)
+        if idInList(bg, dirtIds) or idInList(bg, caveIds)
+            or idInList(bg, lavaIds) or idInList(bg, rockIds) then
+            breakCell(world, bg, { x = x, y = y }, cancelled, DF_STEP_DELAY)
+        end
+    end
+
+    local function breakBatch(cells)
+        local running = 0
+        for _, cell in ipairs(cells) do
+            if cancelled() then break end
+            if cell.y >= 0 and cell.y < world.h and cell.x >= 0 and cell.x < world.w then
+                running += 1
+                local batchX, batchY = cell.x, cell.y
+                task.spawn(function()
+                    pcall(breakTargetAt, batchX, batchY)
+                    running -= 1
+                end)
             end
         end
+        while running > 0 and not cancelled() do task.wait(0.03) end
         return not cancelled()
+    end
+
+    -- Awal lane: buka dua tile di sisi start. Setelah lane selesai,
+    -- buka tiga tile vertikal di pojok seberang untuk jalur lane berikutnya.
+    local function clearEdge(edgeX, y, count)
+        local cells = {}
+        for offset = 0, (count or 2) - 1 do
+            table.insert(cells, { x = edgeX, y = y + offset })
+        end
+        return breakBatch(cells)
     end
 
     local nextFromRight = (currentX - minX) >= (maxX - currentX)
@@ -1481,6 +1507,14 @@ local function runAutoDF(token)
             x += fromRight and -1 or 1
             task.wait(DF_STEP_DELAY)
         end
+
+        if cancelled() then break end
+
+        -- Di ujung lane (X=1/98), periksa pojok sisi seberang.
+        -- Buka Y yang sedang dikerjakan beserta dua tile di bawahnya.
+        local oppositeEdgeX = fromRight and leftEdgeX or rightEdgeX
+        dfStatus.Text = string.format("CHECK CORNER X=%d Y=%d..%d", oppositeEdgeX, y, y + 2)
+        if not clearEdge(oppositeEdgeX, y, 3) then break end
 
         nextFromRight = not nextFromRight
         task.wait(0.05)
