@@ -531,6 +531,7 @@ local getup = (debug and debug.getupvalue) or getupvalue
 
 local function upvalues(fn)
     local t = {}
+    if type(getup) ~= "function" or type(fn) ~= "function" then return t end
     for i = 1, 255 do
         local ok, v = pcall(getup, fn, i)
         if not ok then break end
@@ -581,12 +582,21 @@ end
 -- posisi tile pemain
 local function getGrid()
     local inv = getInventory()
-    if not inv then return nil end
-    local cd = upvalues(inv.canDrop)
+    if not inv or type(inv.canDrop) ~= "function" or type(inv.onDrop) ~= "function" then
+        return nil
+    end
+
+    local okA, cd = pcall(upvalues, inv.canDrop)
+    local okB, od = pcall(upvalues, inv.onDrop)
+    if not okA or not okB or type(cd) ~= "table" or type(od) ~= "table" then
+        return nil
+    end
+
     local x, facing = cd[2], cd[3]
     if type(x) ~= "number" or type(facing) ~= "number" then return nil end
+
     local nums = {}
-    for _, v in ipairs(upvalues(inv.onDrop)) do
+    for _, v in ipairs(od) do
         if type(v) == "number" then table.insert(nums, v) end
     end
     local y = nums[3]
@@ -651,7 +661,11 @@ local function tileValue(world, layer, x, y)
 end
 
 local function inBounds(world, x, y)
-    return type(world.w) == "number" and x >= 0 and y >= 0 and x < world.w and y < world.h
+    return type(world) == "table"
+        and type(world.w) == "number"
+        and type(world.h) == "number"
+        and type(x) == "number" and type(y) == "number"
+        and x >= 0 and y >= 0 and x < world.w and y < world.h
 end
 
 local function layerOf(id)
@@ -737,7 +751,9 @@ end
 
 local function findPath(sx, sy, tx, ty)
     local world, db = getWorld(), getDB()
-    if not world or type(rawget(world, "w")) ~= "number" then return nil end
+    if not world or type(rawget(world, "w")) ~= "number"
+        or type(rawget(world, "h")) ~= "number"
+        or not inBounds(world, sx, sy) then return nil end
     tx, ty = nearestPassable(db, world, tx, ty)
     if not tx then return nil end
     if sx == tx and sy == ty then return {} end
@@ -770,42 +786,34 @@ end
 function Nav.Walk(tx, ty, cancel)
     local world = getWorld()
     local sx, sy = getTile()
-    if not world or not sx then return false end
+    if not world or not sx or not inBounds(world, tx, ty) then return false end
+
     local path = findPath(sx, sy, tx, ty)
     if not path then return false end
+
     local count = 0
     for _, node in ipairs(path) do
         if cancel and cancel() then return false end
-        pcall(world.goTo, node.x, node.y)
+        local ok = pcall(world.goTo, node.x, node.y)
+        if not ok then return false end
         count += 1
-        if count >= NAV_SPEED then count = 0 RunService.Heartbeat:Wait() end
+        if count >= NAV_SPEED then
+            count = 0
+            RunService.Heartbeat:Wait()
+        end
     end
     return true
 end
 
+-- Fly sengaja dinonaktifkan agar navigasi tidak mengubah ghost atau memindahkan
+-- karakter secara paksa saat jalur jalan kaki gagal.
 function Nav.Fly(tx, ty, cancel)
-    local world = getWorld()
-    local sx, sy = getTile()
-    if not world or not sx or not inBounds(world, tx, ty) then return false end
-    local dx, dy = tx - sx, ty - sy
-    local steps = math.max(math.abs(dx), math.abs(dy))
-    world.ghost = true
-    local count = 0
-    for i = 1, steps do
-        if cancel and cancel() then break end
-        pcall(world.goTo, sx + math.floor(dx * i / steps + 0.5), sy + math.floor(dy * i / steps + 0.5))
-        count += 1
-        if count >= NAV_SPEED then count = 0 RunService.Heartbeat:Wait() end
-    end
-    world.ghost = (player:GetAttribute("Ghost") == true)
-    pcall(world.goTo, tx, ty)
-    return true
+    return false
 end
 
 function Nav.To(tx, ty, cancel)
-    if Nav.Walk(tx, ty, cancel) then return true end
     if cancel and cancel() then return false end
-    return Nav.Fly(tx, ty, cancel)
+    return Nav.Walk(tx, ty, cancel)
 end
 
 ----------------------------------------------------------------------
@@ -832,11 +840,12 @@ local function pickDrops(world, before, cancel)
         end
     end
     for _, d in ipairs(targets) do
-        if cancel() then return end
+        if cancel and cancel() then return end
         if table.find(list, d) then
             local reached = Nav.To(math.floor(d.x), math.floor(d.y), cancel)
             local t0 = os.clock()
-            while reached and not cancel() and table.find(list, d) and os.clock() - t0 < 0.9 do
+            while reached and not (cancel and cancel())
+                and table.find(list, d) and os.clock() - t0 < 0.9 do
                 task.wait(0.05)
             end
         end
@@ -907,21 +916,28 @@ local function farmLoop(token, anchor, id)
         if not world then return "NO WORLD" end
         if worldName() ~= anchor.world then return "PINDAH WORLD" end
 
+        -- Ikuti posisi pemain saat ini. Anchor tidak dikunci ke lokasi awal.
+        local px, py, facing = getGrid()
+        if not px then return "NO POS" end
+        anchor.x = math.floor(px)
+        anchor.y = math.floor(py - 0.475)
+        anchor.facing = facing or anchor.facing
+
         local layer = layerOf(id)
         local cells = farmCells(world, anchor)
         if #cells == 0 then return "GRID?" end
 
-        local tx, ty = getTile()
-        if tx ~= anchor.x or ty ~= anchor.y then
-            Nav.To(anchor.x, anchor.y, cancel)
-            task.wait(0.15)
+        local function movedFromAnchor()
+            local cx, cy = getTile()
+            return not cx or cx ~= anchor.x or cy ~= anchor.y
         end
 
-        -- 1) PLACE
+        -- 1) PLACE. Jika pemain bergerak manual, hentikan batch dan hitung grid baru.
         status.Text = "PLACE"
         local outOfItem = false
         for _, cell in ipairs(cells) do
             if cancel() then break end
+            if movedFromAnchor() then break end
             if tileValue(world, layer, cell.x, cell.y) == 0 then
                 local have = countItem(id)
                 if have ~= nil and have <= 0 then outOfItem = true break end
@@ -930,25 +946,30 @@ local function farmLoop(token, anchor, id)
             end
         end
         if cancel() then break end
-        task.wait(0.35) -- game menolak pukulan ke tile yang baru di-place < 0.3 detik
+        if movedFromAnchor() then task.wait(0.1) continue end
+        task.wait(0.35)
 
         -- 2) BREAK
         status.Text = "BREAK"
         local before = dropSet(world)
         for _, cell in ipairs(cells) do
-            if cancel() then break end
+            if cancel() or movedFromAnchor() then break end
             if tileValue(world, layer, cell.x, cell.y) == id then
-                breakCell(world, id, cell, cancel)
+                breakCell(world, id, cell, function()
+                    return cancel() or movedFromAnchor()
+                end)
             end
         end
         if cancel() then break end
+        if movedFromAnchor() then task.wait(0.1) continue end
 
-        -- 3) AMBIL ITEM (hanya kalau Auto Collect ON)
+        -- 3) AUTO COLLECT. Navigasi hanya berjalan kaki, tidak ada teleport/fly.
         if collectEnabled then
             status.Text = "COLLECT"
             task.wait(0.3)
             pickDrops(world, before, cancel)
-            Nav.To(anchor.x, anchor.y, cancel)
+            -- Jangan kembali paksa ke anchor lama. Siklus berikutnya mengambil
+            -- posisi pemain terbaru sebagai pusat grid.
         end
 
         if outOfItem then return "HABIS" end
