@@ -1425,35 +1425,49 @@ local function runAutoDF(token)
         return not cancelled()
     end
 
-    -- Lane pair: kirim punch ke kedua koordinat dalam siklus yang sama.
-    -- Tidak menunggu tile pertama hancur sebelum memukul tile kedua.
+    -- Lane pair: satu worker untuk setiap koordinat tile.
+    -- Kedua worker mengirim hit secara independen, jadi tile kedua tidak
+    -- menunggu tile pertama selesai. Karakter tetap satu; hanya proses hit-nya
+    -- yang berjalan bersamaan.
     local function breakLanePair(cells)
-        local startedAt = os.clock()
-        while not cancelled() do
-            local pending = false
-            for _, cell in ipairs(cells) do
-                local x, y = cell.x, cell.y
-                if x >= 0 and x < world.w and y >= 0 and y < world.h then
-                    local fg = tileValue(world, "fg", x, y)
-                    if idInList(fg, dirtIds) or idInList(fg, caveIds)
-                        or idInList(fg, lavaIds) or idInList(fg, rockIds) then
-                        pending = true
-                        pcall(hit, x, y, true)
-                    elseif fg == 0 then
-                        local bg = tileValue(world, "bg", x, y)
-                        if idInList(bg, dirtIds) or idInList(bg, caveIds)
-                            or idInList(bg, lavaIds) or idInList(bg, rockIds) then
-                            pending = true
-                            pcall(hit, x, y, true)
+        local running = 0
+        local failed = false
+
+        for _, cell in ipairs(cells) do
+            local x, y = cell.x, cell.y
+            if x >= 0 and x < world.w and y >= 0 and y < world.h then
+                running += 1
+                task.spawn(function()
+                    local startedAt = os.clock()
+                    while not cancelled() do
+                        local fg = tileValue(world, "fg", x, y)
+                        local targetId = nil
+                        if idInList(fg, dirtIds) or idInList(fg, caveIds)
+                            or idInList(fg, lavaIds) or idInList(fg, rockIds) then
+                            targetId = fg
+                        elseif fg == 0 then
+                            local bg = tileValue(world, "bg", x, y)
+                            if idInList(bg, dirtIds) or idInList(bg, caveIds)
+                                or idInList(bg, lavaIds) or idInList(bg, rockIds) then
+                                targetId = bg
+                            end
                         end
+
+                        if not targetId then break end
+                        if os.clock() - startedAt > 10 then
+                            failed = true
+                            break
+                        end
+                        pcall(hit, x, y, true)
+                        task.wait(DF_STEP_DELAY)
                     end
-                end
+                    running -= 1
+                end)
             end
-            if not pending then return true end
-            if os.clock() - startedAt > 10 then return false end
-            task.wait(DF_STEP_DELAY)
         end
-        return false
+
+        while running > 0 and not cancelled() do task.wait(0.03) end
+        return not cancelled() and not failed
     end
 
     -- Awal lane: buka dua tile di sisi start. Setelah lane selesai,
@@ -1533,21 +1547,23 @@ local function runAutoDF(token)
             end
             if cancelled() then break end
 
-            -- Punch dua tile berurutan dalam satu batch, bukan satu per satu.
-            -- breakTargetAt menangani foreground dahulu lalu background di tiap koordinat.
+            -- Targetkan dua kolom DI SAMPING/depan player, bukan tile tempat player berdiri.
+            -- Kedua koordinat dipukul pada siklus yang sama. Saat player bergeser 1 tile,
+            -- batch berikutnya berbagi satu kolom dengan batch sebelumnya (overlap 1).
             local direction = fromRight and -1 or 1
-            local batchCells = { { x = x, y = y } }
-            local secondX = x + direction
-            if (fromRight and secondX >= minX) or ((not fromRight) and secondX <= maxX) then
+            local firstX = x + direction
+            local secondX = x + (direction * 2)
+            local batchCells = {}
+            if firstX >= minX and firstX <= maxX then
+                table.insert(batchCells, { x = firstX, y = y })
+            end
+            if secondX >= minX and secondX <= maxX then
                 table.insert(batchCells, { x = secondX, y = y })
             end
 
-            -- Dua worker terpisah menangani dua koordinat dalam batch yang sama.
-            -- Keduanya mulai melalui task.spawn sebelum breakBatch menunggu hasilnya.
-            -- Jadi karakter tetap satu, tetapi dua tile diproses paralel.
-            if not breakBatch(batchCells) then break end
-            -- Geser satu tile saja: pasangan berikutnya overlap satu koordinat,
-            -- supaya tile yang dekat karakter tidak tertinggal saat hancur lebih dulu.
+            -- Kirim hit ke dua kolom samping secara bersamaan.
+            if #batchCells > 0 and not breakLanePair(batchCells) then break end
+            -- Geser player satu tile; dua kolom target berikutnya overlap satu kolom.
             x += direction
             task.wait(DF_STEP_DELAY)
         end
