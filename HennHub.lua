@@ -1385,7 +1385,7 @@ local function runAutoDF(token)
     -- Lane kosong dilewati tanpa mengubah arah zig-zag berikutnya.
     local nextFromRight = (currentX - minX) >= (maxX - currentX)
     local MOVE_NEAR_THRESHOLD = 3
-    local DF_WALK_DELAY = 0.45 -- jeda per tile, dibuat pelan untuk mengurangi rollback
+    local DF_WALK_DELAY = 0.25 -- kecepatan sesuai permintaan pengguna
     local DF_TP_COOLDOWN = 0.85 -- beri waktu server menerima perpindahan
 
     for y = startY, world.h - 1, 2 do
@@ -1402,39 +1402,31 @@ local function runAutoDF(token)
         local fromRight = nextFromRight
 
         local startEdge = fromRight and maxX or minX
-        -- Karakter ditempatkan tepat di batas area: X=98 atau X=1.
-        -- Jangan memakai koordinat luar world (99 / 0).
-        local outsideX = startEdge
+        -- Titik pendekatan berada di luar batas Dirt: kanan X=99, kiri X=0.
+        -- Setelah sampai di sana, TP pendek ke tile tepi X=98 atau X=1.
+        local approachX = fromRight and (maxX + 1) or (minX - 1)
         local targetX = startEdge
         dfStatus.Text = string.format("PREPARE Y=%d", y)
 
-        -- Jika jauh dari pojok, jalan cepat sampai tile tepi terlebih dahulu.
-        -- Jika dekat, langsung gunakan goTo ke posisi satu tile di luar world.
         local nowX, nowY = getTile()
-        local distance = nowX and (math.abs(nowX - outsideX) + math.abs((nowY or y) - y)) or math.huge
+        local distance = nowX and (math.abs(nowX - approachX) + math.abs((nowY or y) - y)) or math.huge
         if distance > MOVE_NEAR_THRESHOLD then
-            local walked = Nav.Walk(startEdge, y, cancelled, DF_WALK_DELAY)
+            local walked = Nav.Walk(approachX, y, cancelled, DF_WALK_DELAY)
             if not walked and not cancelled() then
-                dfStatus.Text = "WALK TO EDGE FAILED"
+                dfStatus.Text = "WALK TO APPROACH FAILED"
                 break
             end
             if cancelled() then break end
-            task.wait(DF_TP_COOLDOWN)
-            local moved, result = pcall(world.goTo, outsideX, y)
-            if not moved or result == false then
-                dfStatus.Text = "EDGE MOVE ERROR"
-                break
-            end
-            task.wait(DF_TP_COOLDOWN)
-        else
-            task.wait(DF_TP_COOLDOWN)
-            local moved, result = pcall(world.goTo, outsideX, y)
-            if not moved or result == false then
-                dfStatus.Text = "EDGE MOVE ERROR"
-                break
-            end
-            task.wait(DF_TP_COOLDOWN)
         end
+
+        -- TP hanya satu tile dari titik pendekatan ke batas lane.
+        task.wait(DF_TP_COOLDOWN)
+        local moved, result = pcall(world.goTo, targetX, y)
+        if not moved or result == false then
+            dfStatus.Text = "EDGE TP ERROR"
+            break
+        end
+        task.wait(DF_TP_COOLDOWN)
 
         dfStatus.Text = string.format("FARMING Y=%d", y)
         local x = targetX
@@ -1474,6 +1466,47 @@ local function runAutoDF(token)
 
             x += fromRight and -1 or 1
             task.wait(0.12)
+        end
+
+        -- Sebelum berpindah ke Y berikutnya, bersihkan dulu target di dua
+        -- ujung lane berikutnya (X=1 dan X=98) dari posisi lane saat ini.
+        -- Ini mencegah karakter/teleport bertemu Dirt atau Cave di titik masuk.
+        local nextY = y + 2
+        if not cancelled() and nextY < world.h then
+            local entryEdges
+            if fromRight then
+                -- Lane ini berakhir di kiri; periksa kanan dulu dan kiri terakhir
+                -- agar karakter kembali berada di sisi masuk lane berikutnya.
+                entryEdges = { maxX, minX }
+            else
+                -- Lane ini berakhir di kanan; periksa kiri dulu dan kanan terakhir.
+                entryEdges = { minX, maxX }
+            end
+
+            for _, edgeX in ipairs(entryEdges) do
+                if cancelled() then break end
+
+                -- Tetap berjalan di lane Y yang sudah selesai, bukan masuk ke Y berikutnya.
+                local px, py = getTile()
+                if px ~= edgeX or py ~= y then
+                    local walked = Nav.Walk(edgeX, y, cancelled, DF_WALK_DELAY)
+                    if not walked and not cancelled() then
+                        dfStatus.Text = string.format("EDGE CHECK WALK FAILED Y=%d", nextY)
+                        break
+                    end
+                end
+                if cancelled() then break end
+
+                -- Hanya cek dan pecahkan Dirt/Cave tepat di ujung lane berikutnya.
+                if tileValue(world, "fg", edgeX, nextY) == dirtId then
+                    breakCell(world, dirtId, { x = edgeX, y = nextY }, cancelled)
+                end
+                if caveBackgroundId
+                    and tileValue(world, "fg", edgeX, nextY) == 0
+                    and tileValue(world, "bg", edgeX, nextY) == caveBackgroundId then
+                    breakCell(world, caveBackgroundId, { x = edgeX, y = nextY }, cancelled)
+                end
+            end
         end
 
         -- Lane selesai: lane berikutnya dimulai dari sisi seberang.
