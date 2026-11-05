@@ -149,6 +149,13 @@ local dfTab = button(
 )
 dfTab.TextSize = 10
 
+local miscTab = button(
+    sidebar,"Misc",
+    UDim2.new(1,-10,0,32),
+    UDim2.fromOffset(5,107),C.panel2
+)
+miscTab.TextSize = 10
+
 -- CONTENT
 local content = Instance.new("Frame")
 content.Position = UDim2.new(0,128,0,49)
@@ -206,17 +213,40 @@ dfLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
     dfPage.CanvasSize = UDim2.new(0,0,0,dfLayout.AbsoluteContentSize.Y+8)
 end)
 
+local miscPage = Instance.new("ScrollingFrame")
+miscPage.Position = UDim2.fromOffset(7,37)
+miscPage.Size = UDim2.new(1,-14,1,-44)
+miscPage.BackgroundTransparency = 1
+miscPage.BorderSizePixel = 0
+miscPage.ScrollBarThickness = 3
+miscPage.ScrollBarImageColor3 = C.border
+miscPage.CanvasSize = UDim2.new(0,0,0,0)
+miscPage.Visible = false
+miscPage.Parent = content
+
+local miscLayout = Instance.new("UIListLayout")
+miscLayout.Padding = UDim.new(0,7)
+miscLayout.SortOrder = Enum.SortOrder.LayoutOrder
+miscLayout.Parent = miscPage
+miscLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    miscPage.CanvasSize = UDim2.new(0,0,0,miscLayout.AbsoluteContentSize.Y+8)
+end)
+
 local function switchPage(which)
     local isDF = which == "df"
-    page.Visible = not isDF
+    local isMisc = which == "misc"
+    page.Visible = not isDF and not isMisc
     dfPage.Visible = isDF
-    pageTitle.Text = isDF and "AUTO DF" or "AUTO FARM"
-    tab.BackgroundColor3 = isDF and C.panel2 or C.blue
+    miscPage.Visible = isMisc
+    pageTitle.Text = isDF and "AUTO DF" or (isMisc and "MISC" or "AUTO FARM")
+    tab.BackgroundColor3 = (not isDF and not isMisc) and C.blue or C.panel2
     dfTab.BackgroundColor3 = isDF and C.blue or C.panel2
+    miscTab.BackgroundColor3 = isMisc and C.blue or C.panel2
 end
 
 tab.Activated:Connect(function() switchPage("farm") end)
 dfTab.Activated:Connect(function() switchPage("df") end)
+miscTab.Activated:Connect(function() switchPage("misc") end)
 
 -- SECTION: CENTERED TITLE, NO GRAY BACKGROUND
 local function section(text)
@@ -565,6 +595,52 @@ dfButton.TextSize = 11
 local dfStopHint = label(dfPage,"Matikan tombol untuk menghentikan proses.",UDim2.new(1,-4,0,22),UDim2.new(),10,C.muted)
 dfStopHint.TextXAlignment = Enum.TextXAlignment.Center
 
+-- MISC: GrowScan toggle + item ID lookup
+local function miscSection(text)
+    local box = Instance.new("Frame")
+    box.Size = UDim2.new(1,-2,0,27)
+    box.BackgroundTransparency = 1
+    box.BorderSizePixel = 0
+    box.Parent = miscPage
+    local heading = label(box,text,UDim2.new(1,-15,1,0),UDim2.fromOffset(9,0),10,C.text)
+    heading.Font = Enum.Font.GothamBold
+    heading.TextXAlignment = Enum.TextXAlignment.Center
+end
+
+miscSection("GROWSCAN")
+local growScanButton = button(miscPage,"OPEN GROWSCAN",UDim2.new(1,-2,0,36),UDim2.new(),C.green)
+growScanButton.TextSize = 11
+local growScanHint = label(miscPage,"Buka atau tutup UI GrowScan bawaan game.",UDim2.new(1,-4,0,24),UDim2.new(),10,C.muted)
+growScanHint.TextXAlignment = Enum.TextXAlignment.Center
+miscSection("CHECK ITEM ID")
+local miscItemInput = Instance.new("TextBox")
+miscItemInput.Size = UDim2.new(1,-2,0,34)
+miscItemInput.BackgroundColor3 = C.panel2
+miscItemInput.BorderSizePixel = 0
+miscItemInput.Text = ""
+miscItemInput.PlaceholderText = "Masukkan nama item, contoh: dirt"
+miscItemInput.PlaceholderColor3 = C.muted
+miscItemInput.TextColor3 = C.text
+miscItemInput.TextSize = 11
+miscItemInput.Font = Enum.Font.Gotham
+miscItemInput.ClearTextOnFocus = false
+miscItemInput.Parent = miscPage
+corner(miscItemInput,7)
+stroke(miscItemInput,C.border)
+local checkIdButton = button(miscPage,"CHECK ITEM ID",UDim2.new(1,-2,0,34),UDim2.new(),C.blue)
+checkIdButton.TextSize = 11
+local itemIdResult = Instance.new("TextLabel")
+itemIdResult.Size = UDim2.new(1,-2,0,48)
+itemIdResult.BackgroundColor3 = C.panel2
+itemIdResult.BorderSizePixel = 0
+itemIdResult.Font = Enum.Font.Gotham
+itemIdResult.Text = "Hasil ID akan muncul di sini."
+itemIdResult.TextColor3 = C.muted
+itemIdResult.TextSize = 11
+itemIdResult.TextWrapped = true
+itemIdResult.Parent = miscPage
+corner(itemIdResult,7)
+
 -- FLOATING BUTTON
 local openButton = button(
     gui,"H",
@@ -824,6 +900,148 @@ local function resolveId(text)
     return best
 end
 
+-- GrowScan bawaan game: tombol Misc men-toggle UI, bukan menjalankan chat command.
+local growScanUiRef = nil
+local growScanIsOpen = false
+local function findGrowScanGui()
+    local roots = { playerGui }
+    local core = game:GetService("CoreGui")
+    pcall(function() table.insert(roots, core) end)
+    for _, root in ipairs(roots) do
+        for _, obj in ipairs(root:GetDescendants()) do
+            if obj:IsA("ScreenGui") then
+                local n = obj.Name:lower()
+                if n:find("grow", 1, true) or n:find("scan", 1, true) then
+                    return obj
+                end
+            end
+        end
+    end
+    return nil
+end
+
+local function setGrowScanOpen(wantOpen)
+    local world = getWorld()
+    local native = world and rawget(world, "growScan")
+    if type(native) ~= "table" or type(native.open) ~= "function" then
+        itemIdResult.Text = "GrowScan bawaan game belum tersedia."
+        return false
+    end
+
+    if wantOpen then
+        local beforeGuis = {}
+        local rootsBefore = { playerGui }
+        pcall(function() table.insert(rootsBefore, game:GetService("CoreGui")) end)
+        for _, root in ipairs(rootsBefore) do
+            pcall(function()
+                for _, obj in ipairs(root:GetDescendants()) do
+                    if obj:IsA("ScreenGui") then beforeGuis[obj] = true end
+                end
+            end)
+        end
+
+        local ok, err = pcall(native.open, {
+            item = (function()
+                local db = getDB()
+                if db then
+                    for id, item in pairs(db) do
+                        if type(id) == "number" and type(item) == "table" and item.growscan then
+                            return id
+                        end
+                    end
+                end
+                return 0
+            end)(),
+            owner = true,
+            blocksPublic = false,
+            floatingPublic = false,
+        }, function() end)
+        if not ok then
+            warn("[HennHub] GrowScan open error: " .. tostring(err))
+            return false
+        end
+        task.wait(0.25)
+        local rootsAfter = { playerGui }
+        pcall(function() table.insert(rootsAfter, game:GetService("CoreGui")) end)
+        for _, root in ipairs(rootsAfter) do
+            pcall(function()
+                for _, obj in ipairs(root:GetDescendants()) do
+                    if obj:IsA("ScreenGui") and not beforeGuis[obj] then
+                        growScanUiRef = obj
+                    end
+                end
+            end)
+        end
+        growScanUiRef = growScanUiRef or findGrowScanGui()
+        if growScanUiRef then
+            pcall(function() growScanUiRef.Enabled = true end)
+        end
+        growScanIsOpen = true
+        growScanButton.Text = "CLOSE GROWSCAN"
+        growScanButton.BackgroundColor3 = C.red
+        return true
+    end
+
+    local closed = false
+    for _, methodName in ipairs({"close", "hide"}) do
+        local method = rawget(native, methodName)
+        if type(method) == "function" then
+            local ok = pcall(method)
+            if ok then closed = true break end
+        end
+    end
+    local guiRef = (growScanUiRef and growScanUiRef.Parent and growScanUiRef) or findGrowScanGui()
+    if guiRef then
+        pcall(function() guiRef.Enabled = false end)
+        closed = true
+    end
+    if not closed then
+        growScanHint.Text = "Tombol close GrowScan tidak ditemukan. Tutup lewat tombol X di UI game."
+        return false
+    end
+    growScanIsOpen = false
+    growScanButton.Text = "OPEN GROWSCAN"
+    growScanButton.BackgroundColor3 = C.green
+    return true
+end
+
+growScanButton.Activated:Connect(function()
+    if growScanIsOpen then
+        setGrowScanOpen(false)
+    else
+        if not setGrowScanOpen(true) then
+            growScanHint.Text = "UI GrowScan tidak ditemukan / gagal dibuka."
+        else
+            growScanHint.Text = "GrowScan sedang terbuka. Tekan tombol untuk menutup."
+        end
+    end
+end)
+
+local function checkMiscItemId()
+    local query = tostring(miscItemInput.Text or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if query == "" then
+        itemIdResult.Text = "Masukkan nama item terlebih dahulu."
+        itemIdResult.TextColor3 = C.muted
+        return
+    end
+    local id = resolveId(query)
+    if not id then
+        itemIdResult.Text = "Item tidak ditemukan: " .. query
+        itemIdResult.TextColor3 = C.red
+        return
+    end
+    local db = getDB()
+    local item = db and db[id]
+    local name = type(item) == "table" and tostring(item.name or query) or query
+    itemIdResult.Text = name .. "  |  ID: " .. tostring(id)
+    itemIdResult.TextColor3 = C.green
+end
+
+checkIdButton.Activated:Connect(checkMiscItemId)
+miscItemInput.FocusLost:Connect(function(enterPressed)
+    if enterPressed then checkMiscItemId() end
+end)
+
 -- jangkauan: naikkan otomatis kalau target grid lebih jauh dari range game
 local longhandOriginal
 local function ensureReach(reach)
@@ -1082,8 +1300,24 @@ local function findDirtId(db)
     if type(db) ~= "table" then return nil end
     for id, item in pairs(db) do
         if type(id) == "number" and type(item) == "table"
-            and type(item.name) == "string" and item.name:lower() == "dirt" then
+            and type(item.name) == "string" and item.name:lower() == "dirt"
+            and not item.background then
             return id
+        end
+    end
+    return nil
+end
+
+-- Cari item Cave Background dari ItemDB, bukan menebak ID-nya.
+local function findCaveBackgroundId(db)
+    if type(db) ~= "table" then return nil end
+    for id, item in pairs(db) do
+        if type(id) == "number" and type(item) == "table"
+            and type(item.name) == "string" and item.background then
+            local name = item.name:lower()
+            if name:find("cave", 1, true) then
+                return id
+            end
         end
     end
     return nil
@@ -1101,6 +1335,7 @@ local function runAutoDF(token)
         return
     end
     local dirtId = findDirtId(db)
+    local caveBackgroundId = findCaveBackgroundId(db)
     local hit = findGameFn("hit")
     if not dirtId or not hit then
         dfStatus.Text = "DIRT / HIT NOT FOUND"
@@ -1142,10 +1377,31 @@ local function runAutoDF(token)
         local x = targetX
         while (fromRight and x >= minX) or ((not fromRight) and x <= maxX) do
             if token ~= dfToken or not dfEnabled then break end
+
+            -- Gerakkan karakter satu tile mengikuti target punch.
+            -- Dari kanan: berdiri di sebelah kanan Dirt lalu punch ke kiri.
+            -- Dari kiri: berdiri di sebelah kiri Dirt lalu punch ke kanan.
+            local standX = x + (fromRight and 1 or -1)
+            local moved, moveResult = pcall(world.goTo, standX, y)
+            if not moved or moveResult == false then
+                dfStatus.Text = "MOVE ERROR"
+                break
+            end
+
+            if token ~= dfToken or not dfEnabled then break end
+            -- Break Dirt foreground terlebih dahulu.
             if tileValue(world, "fg", x, y) == dirtId then
-                -- Pakai mekanisme BREAK yang sama dengan Auto Farm:
-                -- punch berulang sampai tile Dirt hilang atau timeout.
                 breakCell(world, dirtId, { x = x, y = y }, function()
+                    return token ~= dfToken or not dfEnabled
+                end)
+            end
+
+            -- Setelah foreground kosong, break Cave Background pada koordinat
+            -- yang sama. breakCell sendiri memastikan foreground sudah kosong.
+            if caveBackgroundId
+                and tileValue(world, "bg", x, y) == caveBackgroundId
+                and tileValue(world, "fg", x, y) == 0 then
+                breakCell(world, caveBackgroundId, { x = x, y = y }, function()
                     return token ~= dfToken or not dfEnabled
                 end)
             end
@@ -1463,148 +1719,4 @@ end)
 ----------------------------------------------------------------------
 
 
-----------------------------------------------------------------------
--- CHAT COMMANDS: /gs (GrowScan) dan /bid (Block ID)
-----------------------------------------------------------------------
-local TextChatService = game:GetService("TextChatService")
-
-local function commandMessage(message)
-    message = tostring(message or "")
-    local line = "[HennHub] " .. message
-
-    -- Legacy chat
-    pcall(function()
-        game:GetService("StarterGui"):SetCore("ChatMakeSystemMessage", {
-            Text = line,
-            Color = C.text,
-            Font = Enum.Font.Gotham,
-            TextSize = 16,
-        })
-    end)
-
-    -- New TextChatService
-    pcall(function()
-        local channels = TextChatService:FindFirstChild("TextChannels")
-        local channel = channels and (channels:FindFirstChild("RBXGeneral") or channels:GetChildren()[1])
-        if channel and channel.DisplaySystemMessage then
-            channel:DisplaySystemMessage(line)
-        end
-    end)
-
-    print(line)
-end
-
-local function growScan()
-    local world, db = getWorld(), getDB()
-    if not world or not db then
-        commandMessage("World atau ItemDB belum siap.")
-        return
-    end
-
-    local counts = {}
-    local function add(layer, id)
-        if type(id) ~= "number" or id == 0 then return end
-        local item = db[id]
-        local name = type(item) == "table" and item.name or ("Unknown")
-        local key = tostring(id)
-        if not counts[key] then
-            counts[key] = { id = id, name = tostring(name), fg = 0, bg = 0 }
-        end
-        counts[key][layer] += 1
-    end
-
-    for _, layer in ipairs({"fg", "bg"}) do
-        local grid = rawget(world, layer)
-        if type(grid) == "table" then
-            for _, row in pairs(grid) do
-                if type(row) == "table" then
-                    for _, id in pairs(row) do add(layer, id) end
-                end
-            end
-        end
-    end
-
-    local results = {}
-    for _, entry in pairs(counts) do table.insert(results, entry) end
-    table.sort(results, function(a, b)
-        local ta, tb = a.fg + a.bg, b.fg + b.bg
-        if ta == tb then return a.id < b.id end
-        return ta > tb
-    end)
-
-    if #results == 0 then
-        commandMessage("GrowScan selesai: tidak ada block ditemukan di world ini.")
-        return
-    end
-
-    commandMessage("GrowScan " .. tostring(world.name or "World") .. " selesai. Jenis block: " .. #results)
-    local limit = math.min(#results, 30)
-    for i = 1, limit do
-        local e = results[i]
-        commandMessage(string.format("%s | ID: %d | FG: %d | BG: %d | Total: %d", e.name, e.id, e.fg, e.bg, e.fg + e.bg))
-    end
-    if #results > limit then
-        commandMessage("Dan " .. (#results - limit) .. " jenis lainnya. Lihat Output/console untuk daftar lengkap.")
-    end
-end
-
-local function blockIdLookup(query)
-    query = tostring(query or ""):gsub("^%s+", ""):gsub("%s+$", "")
-    if query == "" then
-        query = blockInput.Text
-    end
-    if query == "" then
-        commandMessage("Gunakan /bid nama_item atau /bid angka_id.")
-        return
-    end
-
-    local id = resolveId(query)
-    if not id then
-        commandMessage("Item tidak ditemukan: " .. query)
-        return
-    end
-
-    local db = getDB()
-    local item = db and db[id]
-    local name = type(item) == "table" and item.name or "Unknown"
-    blockInput.Text = tostring(id)
-    commandMessage("Item: " .. tostring(name) .. " | Block ID: " .. tostring(id) .. " (sudah dimasukkan ke kolom Block ID)")
-end
-
-local function handleHennHubCommand(raw)
-    local command, args = tostring(raw or ""):match("^%s*(/%S+)%s*(.-)%s*$")
-    if not command then return end
-    command = command:lower()
-    if command == "/gs" then
-        task.spawn(growScan)
-    elseif command == "/bid" then
-        blockIdLookup(args)
-    end
-end
-
--- Terima command dari chat klasik maupun TextChatService baru.
--- Debounce mencegah command dieksekusi dua kali jika kedua event aktif.
-local lastCommandText = ""
-local lastCommandAt = 0
-local function receiveCommand(text)
-    text = tostring(text or "")
-    if not text:match("^%s*/%S+") then return end
-    local now = os.clock()
-    if text == lastCommandText and now - lastCommandAt < 0.35 then return end
-    lastCommandText, lastCommandAt = text, now
-    handleHennHubCommand(text)
-end
-
-pcall(function()
-    player.Chatted:Connect(receiveCommand)
-end)
-
-pcall(function()
-    TextChatService.SendingMessage:Connect(function(message)
-        if message and message.Text then
-            receiveCommand(message.Text)
-        end
-    end)
-end)
-
-print("HennHub Auto Farm UI Loaded | Chat commands: /gs, /bid")
+print("HennHub loaded | Misc: GrowScan + Check Item ID")
