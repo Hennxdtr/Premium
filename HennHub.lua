@@ -142,6 +142,13 @@ local tab = button(
 )
 tab.TextSize = 10
 
+local dfTab = button(
+    sidebar,"Auto DF",
+    UDim2.new(1,-10,0,32),
+    UDim2.fromOffset(5,70),C.panel2
+)
+dfTab.TextSize = 10
+
 -- CONTENT
 local content = Instance.new("Frame")
 content.Position = UDim2.new(0,128,0,49)
@@ -178,6 +185,38 @@ layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
         0,0,0,layout.AbsoluteContentSize.Y+8
     )
 end)
+
+local dfPage = Instance.new("ScrollingFrame")
+dfPage.Position = UDim2.fromOffset(7,37)
+dfPage.Size = UDim2.new(1,-14,1,-44)
+dfPage.BackgroundTransparency = 1
+dfPage.BorderSizePixel = 0
+dfPage.ScrollBarThickness = 3
+dfPage.ScrollBarImageColor3 = C.border
+dfPage.CanvasSize = UDim2.new(0,0,0,0)
+dfPage.Visible = false
+dfPage.Parent = content
+
+local dfLayout = Instance.new("UIListLayout")
+dfLayout.Padding = UDim.new(0,7)
+dfLayout.SortOrder = Enum.SortOrder.LayoutOrder
+dfLayout.Parent = dfPage
+
+dfLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    dfPage.CanvasSize = UDim2.new(0,0,0,dfLayout.AbsoluteContentSize.Y+8)
+end)
+
+local function switchPage(which)
+    local isDF = which == "df"
+    page.Visible = not isDF
+    dfPage.Visible = isDF
+    pageTitle.Text = isDF and "AUTO DF" or "AUTO FARM"
+    tab.BackgroundColor3 = isDF and C.panel2 or C.blue
+    dfTab.BackgroundColor3 = isDF and C.blue or C.panel2
+end
+
+tab.Activated:Connect(function() switchPage("farm") end)
+dfTab.Activated:Connect(function() switchPage("df") end)
 
 -- SECTION: CENTERED TITLE, NO GRAY BACKGROUND
 local function section(text)
@@ -478,6 +517,54 @@ setHarvestToggle = makeToggle("Enable Auto Harvest", function(on)
     harvestEnabled = on
 end)
 
+-- AUTO DF UI (separate tab)
+local function dfSection(text)
+    local box = Instance.new("Frame")
+    box.Size = UDim2.new(1,-2,0,27)
+    box.BackgroundTransparency = 1
+    box.BorderSizePixel = 0
+    box.Parent = dfPage
+    local heading = label(box,text,UDim2.new(1,-15,1,0),UDim2.fromOffset(9,0),10,C.text)
+    heading.Font = Enum.Font.GothamBold
+    heading.TextXAlignment = Enum.TextXAlignment.Center
+end
+
+local function dfInfoRow(titleText)
+    local row = Instance.new("Frame")
+    row.Size = UDim2.new(1,-2,0,38)
+    row.BackgroundColor3 = C.panel2
+    row.BorderSizePixel = 0
+    row.Parent = dfPage
+    corner(row,7)
+    label(row,titleText,UDim2.new(.5,0,1,0),UDim2.fromOffset(9,0),11,C.muted)
+    local value = label(row,"--",UDim2.new(.5,-12,1,0),UDim2.new(.5,0,0,0),12,C.text)
+    value.TextXAlignment = Enum.TextXAlignment.Right
+    value.Font = Enum.Font.GothamBold
+    return value
+end
+
+dfSection("CHARACTER POSITION")
+local dfXValue = dfInfoRow("POSITION X")
+local dfYValue = dfInfoRow("POSITION Y")
+dfSection("DIRT FARM")
+local dfDescription = Instance.new("TextLabel")
+dfDescription.Size = UDim2.new(1,-2,0,54)
+dfDescription.BackgroundColor3 = C.panel2
+dfDescription.BorderSizePixel = 0
+dfDescription.Font = Enum.Font.Gotham
+dfDescription.TextSize = 10
+dfDescription.TextColor3 = C.muted
+dfDescription.TextWrapped = true
+dfDescription.Text = "Area X: 1-98 | Lane Y: 38, 40, 42... sampai bawah. Arah lane bergantian kanan-kiri."
+dfDescription.Parent = dfPage
+corner(dfDescription,7)
+local dfStatus = dfInfoRow("DF STATUS")
+local dfEnabled = false
+local dfButton = button(dfPage,"START AUTO DF",UDim2.new(1,-2,0,36),UDim2.new(),C.green)
+dfButton.TextSize = 11
+local dfStopHint = label(dfPage,"Matikan tombol untuk menghentikan proses.",UDim2.new(1,-4,0,22),UDim2.new(),10,C.muted)
+dfStopHint.TextXAlignment = Enum.TextXAlignment.Center
+
 -- FLOATING BUTTON
 local openButton = button(
     gui,"H",
@@ -638,6 +725,16 @@ local function getTile()
     if not x then return nil end
     return math.floor(x), math.floor(y - 0.475)
 end
+
+-- Posisi karakter untuk panel Auto DF, diperbarui berkala.
+task.spawn(function()
+    while gui.Parent do
+        local x, y = getTile()
+        dfXValue.Text = x and tostring(x) or "--"
+        dfYValue.Text = y and tostring(y) or "--"
+        task.wait(0.12)
+    end
+end)
 
 local function worldName()
     local w = getWorld()
@@ -977,6 +1074,122 @@ local function breakCell(world, id, cell, cancel)
     end
     return tileValue(world, layer, cell.x, cell.y) ~= id
 end
+
+-- AUTO DF: proses hanya Dirt pada lane Y berselang dua tile.
+-- Setiap lane dimulai dari sisi berlawanan dengan lane sebelumnya.
+local dfToken = 0
+local function findDirtId(db)
+    if type(db) ~= "table" then return nil end
+    for id, item in pairs(db) do
+        if type(id) == "number" and type(item) == "table"
+            and type(item.name) == "string" and item.name:lower() == "dirt" then
+            return id
+        end
+    end
+    return nil
+end
+
+local function runAutoDF(token)
+    local world, db = getWorld(), getDB()
+    if not world or not db or type(world.goTo) ~= "function" then
+        dfStatus.Text = "WORLD / NAV ERROR"
+        if token == dfToken then
+            dfEnabled = false
+            dfButton.Text = "START AUTO DF"
+            dfButton.BackgroundColor3 = C.green
+        end
+        return
+    end
+    local dirtId = findDirtId(db)
+    local hit = findGameFn("hit")
+    if not dirtId or not hit then
+        dfStatus.Text = "DIRT / HIT NOT FOUND"
+        if token == dfToken then
+            dfEnabled = false
+            dfButton.Text = "START AUTO DF"
+            dfButton.BackgroundColor3 = C.green
+        end
+        return
+    end
+
+    local minX, maxX = 1, math.min(98, world.w - 2)
+    local firstY = 38
+    if maxX < minX or world.h <= firstY then
+        dfStatus.Text = "AREA INVALID"
+        if token == dfToken then
+            dfEnabled = false
+            dfButton.Text = "START AUTO DF"
+            dfButton.BackgroundColor3 = C.green
+        end
+        return
+    end
+
+    local rowIndex = 0
+    for y = firstY, world.h - 1, 2 do
+        if token ~= dfToken or not dfEnabled then break end
+        if y >= world.h then break end
+        rowIndex += 1
+        local fromRight = (rowIndex % 2 == 1)
+        local startX = fromRight and (maxX + 1) or (minX - 1)
+        local targetX = fromRight and maxX or minX
+        local moveOK, moveResult = pcall(world.goTo, startX, y)
+        if not moveOK or moveResult == false then
+            dfStatus.Text = "MOVE ERROR"
+            break
+        end
+        dfStatus.Text = string.format("LANE Y=%d", y)
+
+        local x = targetX
+        while (fromRight and x >= minX) or ((not fromRight) and x <= maxX) do
+            if token ~= dfToken or not dfEnabled then break end
+            if tileValue(world, "fg", x, y) == dirtId then
+                -- Pakai mekanisme BREAK yang sama dengan Auto Farm:
+                -- punch berulang sampai tile Dirt hilang atau timeout.
+                breakCell(world, dirtId, { x = x, y = y }, function()
+                    return token ~= dfToken or not dfEnabled
+                end)
+            end
+            x += fromRight and -1 or 1
+        end
+        task.wait(0.08)
+    end
+
+    if token == dfToken then
+        dfEnabled = false
+        dfButton.Text = "START AUTO DF"
+        dfButton.BackgroundColor3 = C.green
+        dfStatus.Text = "COMPLETE"
+    end
+end
+
+dfButton.Activated:Connect(function()
+    if dfEnabled then
+        dfEnabled = false
+        dfToken += 1
+        dfButton.Text = "START AUTO DF"
+        dfButton.BackgroundColor3 = C.green
+        dfStatus.Text = "STOPPED"
+    else
+        dfEnabled = true
+        dfToken += 1
+        local token = dfToken
+        dfButton.Text = "STOP AUTO DF"
+        dfButton.BackgroundColor3 = C.red
+        dfStatus.Text = "STARTING"
+        task.spawn(function()
+            local ok, err = pcall(runAutoDF, token)
+            if not ok then
+                warn("[HennHub] Auto DF error: " .. tostring(err))
+                if token == dfToken then
+                    dfEnabled = false
+                    dfButton.Text = "START AUTO DF"
+                    dfButton.BackgroundColor3 = C.green
+                    dfStatus.Text = "ERROR"
+                end
+            end
+        end)
+    end
+end)
 
 -- Auto Plant/Harvest hanya bekerja pada kotak grid yang dipilih.
 -- Koordinat yang berhasil ditanami disimpan, sehingga Harvest tidak
