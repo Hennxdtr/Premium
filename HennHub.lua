@@ -1430,7 +1430,10 @@ local function runAutoDF(token)
     local function clearEdge(edgeX, y, count)
         local cells = {}
         for offset = 0, (count or 2) - 1 do
-            table.insert(cells, { x = edgeX, y = y + offset })
+            local targetY = y + offset
+            if targetY >= 0 and targetY < world.h then
+                table.insert(cells, { x = edgeX, y = targetY })
+            end
         end
         return breakBatch(cells)
     end
@@ -1474,8 +1477,10 @@ local function runAutoDF(token)
         end
         if cancelled() then break end
 
-        dfStatus.Text = string.format("CLEAR EDGE X=%d Y=%d", edgeX, y)
-        if not clearEdge(edgeX, y) then break end
+        -- Pada sisi awal, buka hanya dua tile: satu sejajar lane dan satu di atasnya.
+        -- Tile di bawah dibuka saat pemeriksaan pojok 5-tile setelah lane selesai.
+        dfStatus.Text = string.format("CLEAR START EDGE X=%d Y=%d..%d", edgeX, math.max(0, y - 1), y)
+        if not clearEdge(edgeX, y - 1, 2) then break end
 
         dfStatus.Text = string.format("FARMING Y=%d", y)
         local x = standX
@@ -1507,7 +1512,9 @@ local function runAutoDF(token)
             end
 
             if not breakBatch(batchCells) then break end
-            x += direction * #batchCells
+            -- Geser satu tile saja: pasangan berikutnya overlap satu koordinat,
+            -- supaya tile yang dekat karakter tidak tertinggal saat hancur lebih dulu.
+            x += direction
             task.wait(DF_STEP_DELAY)
         end
 
