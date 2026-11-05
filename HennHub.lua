@@ -297,6 +297,8 @@ for row = -2,2 do
     for col = -2,2 do
         local cell = Instance.new("TextButton")
         cell.Name = "Cell_"..row.."_"..col
+        -- Kunci urutan tampilan: kiri ke kanan, atas ke bawah.
+        cell.LayoutOrder = (row + 2) * 5 + (col + 2) + 1
         cell.BorderSizePixel = 0
         cell.AutoButtonColor = false
         cell.Font = Enum.Font.GothamBold
@@ -828,7 +830,10 @@ local function dropSet(world)
     return set
 end
 
--- ambil drop; kalau 'before' diisi, hanya drop baru
+-- Ambil drop dengan perpindahan khusus item saja.
+-- Beri jeda antar-target agar perpindahan tidak bertubi-tubi.
+local DROP_TP_DELAY = 0.35
+local DROP_WAIT = 0.25
 local function pickDrops(world, before, cancel)
     local ok, list = pcall(world.dropList)
     if not ok or type(list) ~= "table" then return end
@@ -839,15 +844,26 @@ local function pickDrops(world, before, cancel)
             table.insert(targets, d)
         end
     end
+
     for _, d in ipairs(targets) do
         if cancel and cancel() then return end
         if table.find(list, d) then
-            local reached = Nav.To(math.floor(d.x), math.floor(d.y), cancel)
-            local t0 = os.clock()
-            while reached and not (cancel and cancel())
-                and table.find(list, d) and os.clock() - t0 < 0.9 do
-                task.wait(0.05)
+            local tx, ty = math.floor(d.x), math.floor(d.y)
+            if inBounds(world, tx, ty) and type(world.goTo) == "function" then
+                -- goTo dipanggil langsung hanya saat mengambil drop.
+                -- Navigasi Auto Farm tetap memakai jalur jalan kaki.
+                local moved = pcall(world.goTo, tx, ty)
+                if moved then
+                    task.wait(DROP_WAIT)
+                    local t0 = os.clock()
+                    while not (cancel and cancel())
+                        and table.find(list, d) and os.clock() - t0 < 0.7 do
+                        task.wait(0.05)
+                    end
+                end
             end
+            if cancel and cancel() then return end
+            task.wait(DROP_TP_DELAY)
         end
     end
 end
@@ -873,7 +889,9 @@ local function farmCells(world, anchor)
             local r, c = key:match("^(-?%d+),(-?%d+)$")
             local dy, dx = tonumber(r), tonumber(c)
             if dx and dy then
-                local x, y = anchor.x + dx, anchor.y + dy
+                -- Kolom grid mengikuti arah hadap pemain:
+                -- kolom kiri/kanan tetap konsisten meski pemain berbalik.
+                local x, y = anchor.x + (dx * (anchor.facing or 1)), anchor.y + dy
                 if inBounds(world, x, y) then table.insert(cells, { x = x, y = y }) end
             end
         end
