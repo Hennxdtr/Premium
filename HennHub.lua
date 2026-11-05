@@ -1063,7 +1063,8 @@ end
 -- PATHFINDING (jalan lewat tile kosong; tidak memakai mode melayang)
 ----------------------------------------------------------------------
 local Nav = {}
-local NAV_SPEED = 2 -- tile per frame
+local NAV_SPEED = 1 -- satu tile per langkah agar tidak terlalu cepat
+local NAV_STEP_DELAY = 0.16 -- jeda konservatif antar-tile untuk mengurangi rollback
 
 local function passable(db, world, x, y)
     if not inBounds(world, x, y) then return false end
@@ -1143,7 +1144,7 @@ function Nav.Walk(tx, ty, cancel)
         count += 1
         if count >= NAV_SPEED then
             count = 0
-            RunService.Heartbeat:Wait()
+            task.wait(NAV_STEP_DELAY)
         end
     end
     return true
@@ -1383,7 +1384,8 @@ local function runAutoDF(token)
     -- Arah hanya berganti setelah lane yang memiliki target selesai diproses.
     -- Lane kosong dilewati tanpa mengubah arah zig-zag berikutnya.
     local nextFromRight = (currentX - minX) >= (maxX - currentX)
-    local MOVE_NEAR_THRESHOLD = 8
+    local MOVE_NEAR_THRESHOLD = 3
+    local DF_TP_COOLDOWN = 0.45
 
     for y = startY, world.h - 1, 2 do
         if cancelled() then break end
@@ -1414,17 +1416,21 @@ local function runAutoDF(token)
                 break
             end
             if cancelled() then break end
+            task.wait(DF_TP_COOLDOWN)
             local moved, result = pcall(world.goTo, outsideX, y)
             if not moved or result == false then
                 dfStatus.Text = "EDGE MOVE ERROR"
                 break
             end
+            task.wait(DF_TP_COOLDOWN)
         else
+            task.wait(DF_TP_COOLDOWN)
             local moved, result = pcall(world.goTo, outsideX, y)
             if not moved or result == false then
                 dfStatus.Text = "EDGE MOVE ERROR"
                 break
             end
+            task.wait(DF_TP_COOLDOWN)
         end
 
         dfStatus.Text = string.format("FARMING Y=%d", y)
@@ -1439,11 +1445,13 @@ local function runAutoDF(token)
                 local moved = Nav.Walk(standX, y, cancelled)
                 if not moved and not cancelled() then
                     -- Satu langkah langsung hanya sebagai fallback untuk tile tepi.
+                    task.wait(DF_TP_COOLDOWN)
                     local ok, result = pcall(world.goTo, standX, y)
                     if not ok or result == false then
                         dfStatus.Text = "LANE MOVE ERROR"
                         break
                     end
+                    task.wait(DF_TP_COOLDOWN)
                 end
             end
             if cancelled() then break end
@@ -1461,6 +1469,7 @@ local function runAutoDF(token)
             end
 
             x += fromRight and -1 or 1
+            task.wait(0.12)
         end
 
         -- Lane selesai: lane berikutnya dimulai dari sisi seberang.
