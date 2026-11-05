@@ -465,6 +465,19 @@ setCollectToggle = makeToggle("Enable Auto Collect", function(on)
     end
 end)
 
+-- AUTO PLANT / HARVEST: ID dimasukkan langsung, tanpa /gs atau /bid.
+section("AUTO PLANT / HARVEST")
+local seedInput = makeInput("Seed ID")
+local harvestInput = makeInput("Harvest ID (ID tanaman matang)")
+local plantEnabled, harvestEnabled = false, false
+local setPlantToggle, setHarvestToggle
+setPlantToggle = makeToggle("Enable Auto Plant", function(on)
+    plantEnabled = on
+end)
+setHarvestToggle = makeToggle("Enable Auto Harvest", function(on)
+    harvestEnabled = on
+end)
+
 -- FLOATING BUTTON
 local openButton = button(
     gui,"H",
@@ -965,6 +978,145 @@ local function breakCell(world, id, cell, cancel)
     return tileValue(world, layer, cell.x, cell.y) ~= id
 end
 
+-- Auto Plant/Harvest hanya bekerja pada kotak grid yang dipilih.
+-- Koordinat yang berhasil ditanami disimpan, sehingga Harvest tidak
+-- menyentuh tanaman lain di world.
+local plantHarvestToken = 0
+local plantedCells = {}
+
+local function serpentineCells(world, anchor)
+    local cells = farmCells(world, anchor)
+    local rows = {}
+    for _, cell in ipairs(cells) do
+        rows[cell.y] = rows[cell.y] or {}
+        table.insert(rows[cell.y], cell)
+    end
+    local ys = {}
+    for y in pairs(rows) do table.insert(ys, y) end
+    table.sort(ys)
+    local result = {}
+    for index, y in ipairs(ys) do
+        table.sort(rows[y], function(a,b)
+            if index % 2 == 1 then return a.x < b.x end
+            return a.x > b.x
+        end)
+        for _, cell in ipairs(rows[y]) do table.insert(result, cell) end
+    end
+    return result
+end
+
+local function isDirtTile(world, cell)
+    local id = tileValue(world, "bg", cell.x, cell.y)
+    if type(id) ~= "number" or id == 0 then return false end
+    local db = getDB()
+    local item = db and db[id]
+    local name = type(item) == "table" and tostring(item.name or ""):lower() or ""
+    return name:find("dirt", 1, true) ~= nil
+end
+
+local function plantHarvestLoop(token, anchor)
+    local function cancel()
+        return plantHarvestToken ~= token or (not plantEnabled and not harvestEnabled)
+    end
+    while not cancel() do
+        local world = getWorld()
+        if not world or worldName() ~= anchor.world then return "WORLD?" end
+        local cells = serpentineCells(world, anchor)
+        if #cells == 0 then return "GRID?" end
+
+        local seedId = tonumber(seedInput.Text)
+        local harvestId = tonumber(harvestInput.Text)
+        local hit = findGameFn("hit")
+
+        for _, cell in ipairs(cells) do
+            if cancel() then break end
+            local key = tostring(cell.x) .. "," .. tostring(cell.y)
+            local fg = tileValue(world, "fg", cell.x, cell.y)
+
+            -- Tanam seed hanya pada dirt kosong di grid pilihan.
+            if plantEnabled and seedId and seedId > 0 and not plantedCells[key]
+                and fg == 0 and isDirtTile(world, cell) then
+                local have = countItem(seedId)
+                if have == nil or have > 0 then
+                    if placeCell(seedId, cell, anchor.facing) then
+                        plantedCells[key] = { x = cell.x, y = cell.y, seed = seedId }
+                        task.wait(0.12)
+                    end
+                end
+            end
+
+            -- Panen hanya koordinat yang ditanami oleh loop ini,
+            -- dan hanya ketika foreground sudah berubah menjadi Harvest ID.
+            if harvestEnabled and harvestId and harvestId > 0 and plantedCells[key]
+                and fg == harvestId and hit then
+                breakCell(world, harvestId, cell, cancel)
+                if tileValue(world, "fg", cell.x, cell.y) == 0 then
+                    plantedCells[key] = nil
+                end
+                task.wait(0.12)
+            end
+        end
+        task.wait(0.25)
+    end
+    return nil
+end
+
+local function startPlantHarvest()
+    local seedId = tonumber(seedInput.Text)
+    local harvestId = tonumber(harvestInput.Text)
+    if plantEnabled and (not seedId or seedId <= 0) then
+        if setPlantToggle then setPlantToggle(false) end
+        warn("[HennHub] Masukkan Seed ID yang valid")
+        return
+    end
+    if harvestEnabled and (not harvestId or harvestId <= 0) then
+        if setHarvestToggle then setHarvestToggle(false) end
+        warn("[HennHub] Masukkan Harvest ID yang valid")
+        return
+    end
+    local selected = 0
+    for _, on in pairs(selectedCells) do if on then selected += 1 end end
+    if selected == 0 then
+        if setPlantToggle then setPlantToggle(false) end
+        if setHarvestToggle then setHarvestToggle(false) end
+        warn("[HennHub] Pilih kotak grid untuk Auto Plant/Harvest")
+        return
+    end
+    local x, y, facing = getGrid()
+    if not x then
+        warn("[HennHub] Posisi karakter tidak terdeteksi")
+        if setPlantToggle then setPlantToggle(false) end
+        if setHarvestToggle then setHarvestToggle(false) end
+        return
+    end
+    local anchor = { x = math.floor(x), y = math.floor(y - 0.475), facing = facing, world = worldName() }
+    plantHarvestToken += 1
+    local token = plantHarvestToken
+    task.spawn(function()
+        local ok, reason = pcall(plantHarvestLoop, token, anchor)
+        if not ok then warn("[HennHub] Auto Plant/Harvest error: " .. tostring(reason)) end
+        if plantHarvestToken == token then
+            if setPlantToggle then setPlantToggle(false) end
+            if setHarvestToggle then setHarvestToggle(false) end
+            if reason then warn("[HennHub] Auto Plant/Harvest berhenti: " .. tostring(reason)) end
+        end
+    end)
+end
+
+task.spawn(function()
+    local wasEnabled = false
+    while true do
+        local enabled = plantEnabled or harvestEnabled
+        if enabled and not wasEnabled then
+            startPlantHarvest()
+        elseif not enabled and wasEnabled then
+            plantHarvestToken += 1
+        end
+        wasEnabled = enabled
+        task.wait(0.1)
+    end
+end)
+
 -- return: alasan berhenti (string) atau nil kalau dihentikan manual
 local function farmLoop(token, anchor, id)
     local function cancel() return farmToken ~= token end
@@ -1101,17 +1253,32 @@ end)
 ----------------------------------------------------------------------
 -- CHAT COMMANDS: /gs (GrowScan) dan /bid (Block ID)
 ----------------------------------------------------------------------
+local TextChatService = game:GetService("TextChatService")
+
 local function commandMessage(message)
     message = tostring(message or "")
+    local line = "[HennHub] " .. message
+
+    -- Legacy chat
     pcall(function()
         game:GetService("StarterGui"):SetCore("ChatMakeSystemMessage", {
-            Text = "[HennHub] " .. message,
+            Text = line,
             Color = C.text,
             Font = Enum.Font.Gotham,
             TextSize = 16,
         })
     end)
-    print("[HennHub] " .. message)
+
+    -- New TextChatService
+    pcall(function()
+        local channels = TextChatService:FindFirstChild("TextChannels")
+        local channel = channels and (channels:FindFirstChild("RBXGeneral") or channels:GetChildren()[1])
+        if channel and channel.DisplaySystemMessage then
+            channel:DisplaySystemMessage(line)
+        end
+    end)
+
+    print(line)
 end
 
 local function growScan()
@@ -1202,9 +1369,29 @@ local function handleHennHubCommand(raw)
     end
 end
 
--- Player.Chatted kompatibel dengan chat klasik; TextChatService meneruskan
--- pesan lokal melalui event Chatted pada LocalPlayer di client.
-player.Chatted:Connect(handleHennHubCommand)
+-- Terima command dari chat klasik maupun TextChatService baru.
+-- Debounce mencegah command dieksekusi dua kali jika kedua event aktif.
+local lastCommandText = ""
+local lastCommandAt = 0
+local function receiveCommand(text)
+    text = tostring(text or "")
+    if not text:match("^%s*/%S+") then return end
+    local now = os.clock()
+    if text == lastCommandText and now - lastCommandAt < 0.35 then return end
+    lastCommandText, lastCommandAt = text, now
+    handleHennHubCommand(text)
+end
 
+pcall(function()
+    player.Chatted:Connect(receiveCommand)
+end)
 
-print("HennHub Auto Farm UI Loaded")
+pcall(function()
+    TextChatService.SendingMessage:Connect(function(message)
+        if message and message.Text then
+            receiveCommand(message.Text)
+        end
+    end)
+end)
+
+print("HennHub Auto Farm UI Loaded | Chat commands: /gs, /bid")
