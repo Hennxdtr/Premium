@@ -1545,12 +1545,6 @@ local function runAutoDF(token)
             if not clearEdge(edgeX, cornerStartY, 5) then break end
         end
 
-        -- Setelah 5 tile sisi luar terbuka, hancurkan tile tepat di jalur masuk
-        -- lane (X=1 atau X=98) pada Y yang akan dikerjakan.
-        dfStatus.Text = string.format("CLEAR ENTRY X=%d Y=%d", standX, y)
-        breakTargetAt(standX, y)
-        if cancelled() then break end
-
         dfStatus.Text = string.format("MOVE TO X=%d Y=%d", standX, y)
 
         local px, py = getTile()
@@ -1621,6 +1615,14 @@ local function runAutoDF(token)
         local cornerStartY = math.max(0, y - 2)
         dfStatus.Text = string.format("CHECK CORNER X=%d Y=%d..%d", oppositeEdgeX, cornerStartY, math.min(world.h - 1, y + 2))
         if not clearEdge(oppositeEdgeX, cornerStartY, 5) then break end
+
+        -- Setelah 5 tile vertikal di pojok luar dibersihkan, hancurkan
+        -- tile pada lane Y yang sama di sisi dalam (X=1 atau X=98).
+        -- Setelah itu barulah loop turun ke Y berikutnya.
+        local nextInnerX = fromRight and minX or maxX
+        dfStatus.Text = string.format("CLEAR CORNER ENTRY X=%d Y=%d", nextInnerX, y)
+        breakTargetAt(nextInnerX, y)
+        if cancelled() then break end
 
         -- Lane ini selesai. Jangan kembali ke Y ini walaupun ada perubahan tile
         -- di pojok saat membuka jalur untuk lane berikutnya.
