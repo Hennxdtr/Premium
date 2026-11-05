@@ -1298,18 +1298,29 @@ end
 -- lalu target lane mencakup Dirt, Cave Background, Lava, dan Rock.
 local dfToken = 0
 
-local function findBlockId(db, keyword, wantBackground)
-    if type(db) ~= "table" then return nil end
-    keyword = keyword:lower()
+local function findBlockIds(db, keyword)
+    local found = {}
+    if type(db) ~= "table" then return found end
+    keyword = tostring(keyword):lower()
     for id, item in pairs(db) do
-        if type(id) == "number" and type(item) == "table"
-            and type(item.name) == "string"
-            and item.name:lower():find(keyword, 1, true)
-            and (item.background == true) == wantBackground then
-            return id
+        local numericId = tonumber(id)
+        if numericId and type(item) == "table" then
+            local name = tostring(item.name or ""):lower()
+            if name:find(keyword, 1, true) then
+                table.insert(found, numericId)
+            end
         end
     end
-    return nil
+    table.sort(found)
+    return found
+end
+
+local function idInList(id, list)
+    if type(id) ~= "number" then return false end
+    for _, candidate in ipairs(list) do
+        if id == candidate then return true end
+    end
+    return false
 end
 
 local function runAutoDF(token)
@@ -1324,12 +1335,14 @@ local function runAutoDF(token)
         return
     end
 
-    local dirtId = findBlockId(db, "dirt", false)
-    local caveBackgroundId = findBlockId(db, "cave", true)
-    local lavaFgId = findBlockId(db, "lava", false)
-    local rockFgId = findBlockId(db, "rock", false)
+    -- Cari berdasarkan nama item tanpa mengunci layer fg/bg.
+    -- Di beberapa versi ItemDB, Lava/Rock bisa tercatat sebagai background.
+    local dirtIds = findBlockIds(db, "dirt")
+    local caveIds = findBlockIds(db, "cave")
+    local lavaIds = findBlockIds(db, "lava")
+    local rockIds = findBlockIds(db, "rock")
     local hit = findGameFn("hit")
-    if not dirtId or not hit then
+    if #dirtIds == 0 or not hit then
         dfStatus.Text = "DIRT / HIT NOT FOUND"
         if token == dfToken then
             dfEnabled = false
@@ -1359,12 +1372,11 @@ local function runAutoDF(token)
 
     local function isLaneTarget(x, y)
         local fg = tileValue(world, "fg", x, y)
-        if fg == dirtId or (lavaFgId and fg == lavaFgId)
-            or (rockFgId and fg == rockFgId) then
-            return true
-        end
-        return caveBackgroundId ~= nil and fg == 0
-            and tileValue(world, "bg", x, y) == caveBackgroundId
+        local bg = tileValue(world, "bg", x, y)
+        return idInList(fg, dirtIds) or idInList(fg, caveIds)
+            or idInList(fg, lavaIds) or idInList(fg, rockIds)
+            or idInList(bg, dirtIds) or idInList(bg, caveIds)
+            or idInList(bg, lavaIds) or idInList(bg, rockIds)
     end
 
     local function hasTargetOnLane(y)
@@ -1374,6 +1386,7 @@ local function runAutoDF(token)
         return false
     end
 
+    dfStatus.Text = string.format("ID D:%d C:%d L:%d R:%d", #dirtIds, #caveIds, #lavaIds, #rockIds)
     local DF_STEP_DELAY = 0.25
     local DF_TP_COOLDOWN = 0.45
 
@@ -1383,13 +1396,13 @@ local function runAutoDF(token)
         for _, edgeY in ipairs({ y - 1, y }) do
             if cancelled() then return false end
             if edgeY >= 0 and edgeY < world.h then
-                if tileValue(world, "fg", edgeX, edgeY) == dirtId then
-                    breakCell(world, dirtId, { x = edgeX, y = edgeY }, cancelled, DF_STEP_DELAY)
+                local edgeFg = tileValue(world, "fg", edgeX, edgeY)
+                if idInList(edgeFg, dirtIds) then
+                    breakCell(world, edgeFg, { x = edgeX, y = edgeY }, cancelled, DF_STEP_DELAY)
                 end
-                if caveBackgroundId
-                    and tileValue(world, "fg", edgeX, edgeY) == 0
-                    and tileValue(world, "bg", edgeX, edgeY) == caveBackgroundId then
-                    breakCell(world, caveBackgroundId, { x = edgeX, y = edgeY }, cancelled, DF_STEP_DELAY)
+                local edgeBg = tileValue(world, "bg", edgeX, edgeY)
+                if tileValue(world, "fg", edgeX, edgeY) == 0 and idInList(edgeBg, caveIds) then
+                    breakCell(world, edgeBg, { x = edgeX, y = edgeY }, cancelled, DF_STEP_DELAY)
                 end
             end
         end
@@ -1451,18 +1464,18 @@ local function runAutoDF(token)
             if cancelled() then break end
 
             local fg = tileValue(world, "fg", x, y)
-            if fg == dirtId then
-                breakCell(world, dirtId, { x = x, y = y }, cancelled, DF_STEP_DELAY)
-            elseif lavaFgId and fg == lavaFgId then
-                breakCell(world, lavaFgId, { x = x, y = y }, cancelled, DF_STEP_DELAY)
-            elseif rockFgId and fg == rockFgId then
-                breakCell(world, rockFgId, { x = x, y = y }, cancelled, DF_STEP_DELAY)
+            if idInList(fg, dirtIds) or idInList(fg, caveIds)
+                or idInList(fg, lavaIds) or idInList(fg, rockIds) then
+                breakCell(world, fg, { x = x, y = y }, cancelled, DF_STEP_DELAY)
             end
 
-            if caveBackgroundId
-                and tileValue(world, "fg", x, y) == 0
-                and tileValue(world, "bg", x, y) == caveBackgroundId then
-                breakCell(world, caveBackgroundId, { x = x, y = y }, cancelled, DF_STEP_DELAY)
+            -- Periksa background setelah foreground kosong.
+            if tileValue(world, "fg", x, y) == 0 then
+                local bg = tileValue(world, "bg", x, y)
+                if idInList(bg, dirtIds) or idInList(bg, caveIds)
+                    or idInList(bg, lavaIds) or idInList(bg, rockIds) then
+                    breakCell(world, bg, { x = x, y = y }, cancelled, DF_STEP_DELAY)
+                end
             end
 
             x += fromRight and -1 or 1
