@@ -71,7 +71,10 @@ local C = {
     green = Color3.fromRGB(75,145,112),
     red = Color3.fromRGB(180,75,78),
     blue = Color3.fromRGB(75,115,155),
-    grid = Color3.fromRGB(45,48,58)
+    grid = Color3.fromRGB(45,48,58),
+    deep = Color3.fromRGB(19,22,29),
+    steel = Color3.fromRGB(49,58,73),
+    ice = Color3.fromRGB(112,157,196)
 }
 
 local gui = Instance.new("ScreenGui")
@@ -91,6 +94,17 @@ local function stroke(obj,color)
     s.Color = color or C.border
     s.Thickness = 1
     s.Parent = obj
+end
+
+local function gradient(obj, topColor, bottomColor, rotation)
+    local g = Instance.new("UIGradient")
+    g.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, topColor),
+        ColorSequenceKeypoint.new(1, bottomColor)
+    })
+    g.Rotation = rotation or 90
+    g.Parent = obj
+    return g
 end
 
 local function label(parent,text,size,pos,textSize,color)
@@ -120,6 +134,8 @@ local function button(parent,text,size,pos,bg)
     b.Font = Enum.Font.GothamMedium
     b.Parent = parent
     corner(b,7)
+    local edge = stroke(b, Color3.fromRGB(74,85,103))
+    edge.Transparency = 0.62
     return b
 end
 
@@ -132,8 +148,11 @@ main.Size = UDim2.fromOffset(720, 480)
 main.BackgroundColor3 = C.bg
 main.BorderSizePixel = 0
 main.Parent = gui
-corner(main,12)
-stroke(main,C.border)
+corner(main,14)
+gradient(main, Color3.fromRGB(34,38,48), C.deep, 90)
+local mainStroke = stroke(main, C.steel)
+mainStroke.Thickness = 1.25
+mainStroke.Transparency = 0.12
 
 local constraint = Instance.new("UISizeConstraint")
 constraint.MinSize = Vector2.new(270,300)
@@ -146,7 +165,17 @@ header.Size = UDim2.new(1,0,0,42)
 header.BackgroundColor3 = C.panel
 header.BorderSizePixel = 0
 header.Parent = main
-corner(header,12)
+corner(header,14)
+gradient(header, Color3.fromRGB(43,50,63), Color3.fromRGB(28,32,41), 0)
+local headerAccent = Instance.new("Frame")
+headerAccent.Name = "AccentLine"
+headerAccent.Size = UDim2.new(1,-18,0,2)
+headerAccent.Position = UDim2.new(0,9,1,-2)
+headerAccent.BackgroundColor3 = C.ice
+headerAccent.BorderSizePixel = 0
+headerAccent.Parent = header
+gradient(headerAccent, C.blue, C.ice, 0)
+corner(headerAccent,2)
 
 -- Title dibuat menjadi tombol toggle panel.
 local titleButton = button(
@@ -156,7 +185,10 @@ local titleButton = button(
 )
 titleButton.TextSize = 13
 titleButton.Font = Enum.Font.GothamBold
-titleButton.TextColor3 = C.green
+titleButton.TextColor3 = C.ice
+titleButton.BackgroundColor3 = Color3.fromRGB(31,39,50)
+local titleStroke = stroke(titleButton, C.steel)
+titleStroke.Transparency = 0.25
 
 -- Tab horizontal di bagian atas, mengikuti gaya UI script referensi.
 local tab = button(
@@ -199,7 +231,10 @@ content.Size = UDim2.new(1,-16,1,-57)
 content.BackgroundColor3 = C.panel
 content.BorderSizePixel = 0
 content.Parent = main
-corner(content,9)
+corner(content,10)
+gradient(content, Color3.fromRGB(30,34,43), Color3.fromRGB(25,28,36), 90)
+local contentStroke = stroke(content, Color3.fromRGB(54,61,74))
+contentStroke.Transparency = 0.45
 
 -- RESPONSIVE LAYOUT: menyesuaikan panel dan tombol dengan ukuran layar.
 local camera = workspace.CurrentCamera
@@ -263,6 +298,7 @@ local pageTitle = label(
     UDim2.fromOffset(9,1),11,C.text
 )
 pageTitle.Font = Enum.Font.GothamBold
+pageTitle.TextColor3 = C.ice
 
 local page = Instance.new("ScrollingFrame")
 page.Position = UDim2.fromOffset(6,23)
@@ -274,74 +310,41 @@ page.ScrollBarImageColor3 = C.border
 page.CanvasSize = UDim2.new(0,0,0,0)
 page.Parent = content
 
-local layout = Instance.new("UIListLayout")
-layout.Padding = UDim.new(0,5)
-layout.SortOrder = Enum.SortOrder.LayoutOrder
-layout.Parent = page
+local function setupColumns(scroller)
+    for _, child in ipairs(scroller:GetChildren()) do
+        if child:IsA("UIListLayout") then child:Destroy() end
+    end
+    local columns = {}
+    for _, side in ipairs({"Left", "Right"}) do
+        local column = Instance.new("Frame")
+        column.Name = side .. "Column"
+        column.BackgroundTransparency = 1
+        column.BorderSizePixel = 0
+        column.Size = UDim2.new(0.5,-5,0,0)
+        column.AutomaticSize = Enum.AutomaticSize.Y
+        column.Parent = scroller
+        local list = Instance.new("UIListLayout")
+        list.Padding = UDim.new(0,7)
+        list.SortOrder = Enum.SortOrder.LayoutOrder
+        list.Parent = column
+        columns[side] = column
+    end
+    columns.Left.Position = UDim2.new(0,0,0,0)
+    columns.Right.Position = UDim2.new(0.5,5,0,0)
+    local function updateCanvas()
+        local height = math.max(columns.Left.UIListLayout.AbsoluteContentSize.Y,
+            columns.Right.UIListLayout.AbsoluteContentSize.Y)
+        scroller.CanvasSize = UDim2.new(0,0,0,height+8)
+    end
+    columns.Left.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateCanvas)
+    columns.Right.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateCanvas)
+    return columns
+end
 
-layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-    page.CanvasSize = UDim2.new(
-        0,0,0,layout.AbsoluteContentSize.Y+8
-    )
-end)
-
--- Halaman AUTO FARM khusus Plant / Harvest.
-local farmPage = Instance.new("ScrollingFrame")
-farmPage.Position = UDim2.fromOffset(6,23)
-farmPage.Size = UDim2.new(1,-12,1,-28)
-farmPage.BackgroundTransparency = 1
-farmPage.BorderSizePixel = 0
-farmPage.ScrollBarThickness = 2
-farmPage.ScrollBarImageColor3 = C.border
-farmPage.CanvasSize = UDim2.new(0,0,0,0)
-farmPage.Visible = false
-farmPage.Parent = content
-local farmLayout = Instance.new("UIListLayout")
-farmLayout.Padding = UDim.new(0,5)
-farmLayout.SortOrder = Enum.SortOrder.LayoutOrder
-farmLayout.Parent = farmPage
-farmLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-    farmPage.CanvasSize = UDim2.new(0,0,0,farmLayout.AbsoluteContentSize.Y+8)
-end)
-
-local dfPage = Instance.new("ScrollingFrame")
-dfPage.Position = UDim2.fromOffset(6,23)
-dfPage.Size = UDim2.new(1,-12,1,-28)
-dfPage.BackgroundTransparency = 1
-dfPage.BorderSizePixel = 0
-dfPage.ScrollBarThickness = 2
-dfPage.ScrollBarImageColor3 = C.border
-dfPage.CanvasSize = UDim2.new(0,0,0,0)
-dfPage.Visible = false
-dfPage.Parent = content
-
-local dfLayout = Instance.new("UIListLayout")
-dfLayout.Padding = UDim.new(0,5)
-dfLayout.SortOrder = Enum.SortOrder.LayoutOrder
-dfLayout.Parent = dfPage
-
-dfLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-    dfPage.CanvasSize = UDim2.new(0,0,0,dfLayout.AbsoluteContentSize.Y+8)
-end)
-
-local miscPage = Instance.new("ScrollingFrame")
-miscPage.Position = UDim2.fromOffset(6,23)
-miscPage.Size = UDim2.new(1,-12,1,-28)
-miscPage.BackgroundTransparency = 1
-miscPage.BorderSizePixel = 0
-miscPage.ScrollBarThickness = 2
-miscPage.ScrollBarImageColor3 = C.border
-miscPage.CanvasSize = UDim2.new(0,0,0,0)
-miscPage.Visible = false
-miscPage.Parent = content
-
-local miscLayout = Instance.new("UIListLayout")
-miscLayout.Padding = UDim.new(0,5)
-miscLayout.SortOrder = Enum.SortOrder.LayoutOrder
-miscLayout.Parent = miscPage
-miscLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-    miscPage.CanvasSize = UDim2.new(0,0,0,miscLayout.AbsoluteContentSize.Y+8)
-end)
+local pageColumns = setupColumns(page)
+local farmColumns = setupColumns(farmPage)
+local dfColumns = setupColumns(dfPage)
+local miscColumns = setupColumns(miscPage)
 
 local function switchPage(which)
     local isFarm = which == "farm"
@@ -363,33 +366,67 @@ farmTab.Activated:Connect(function() switchPage("farm") end)
 dfTab.Activated:Connect(function() switchPage("df") end)
 miscTab.Activated:Connect(function() switchPage("misc") end)
 
--- SECTION: CENTERED TITLE, NO GRAY BACKGROUND
+-- Compact two-column groupboxes, modeled on the reference tab layout.
 local buildPage = page
-local function section(text)
-    -- Groupbox-style heading inspired by the reference UI, retaining HennHub colors.
-    local box = Instance.new("Frame")
-    box.Size = UDim2.new(1,-2,0,22)
-    box.BackgroundColor3 = C.panel2
-    box.BorderSizePixel = 0
-    box.Parent = buildPage
-    corner(box,6)
-    stroke(box,C.border)
+local activeColumns = pageColumns
+local activeColumn = pageColumns.Left
+local function createGroup(columns, side, titleText)
+    local column = columns[side or "Left"] or columns.Left
+    local card = Instance.new("Frame")
+    card.Name = (titleText:gsub("%W+", "")) .. "Group"
+    card.Size = UDim2.new(1,0,0,0)
+    card.AutomaticSize = Enum.AutomaticSize.Y
+    card.BackgroundColor3 = Color3.fromRGB(30,34,43)
+    card.BorderSizePixel = 0
+    card.Parent = column
+    corner(card,9)
+    gradient(card, Color3.fromRGB(38,44,55), Color3.fromRGB(27,31,40), 90)
+    local cardStroke = stroke(card, C.steel)
+    cardStroke.Transparency = 0.28
 
+    local cardLayout = Instance.new("UIListLayout")
+    cardLayout.Padding = UDim.new(0,5)
+    cardLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    cardLayout.Parent = card
+
+    local heading = Instance.new("Frame")
+    heading.Size = UDim2.new(1,-8,0,22)
+    heading.Position = UDim2.fromOffset(4,4)
+    heading.BackgroundColor3 = Color3.fromRGB(43,51,64)
+    heading.BorderSizePixel = 0
+    heading.LayoutOrder = 1
+    heading.Parent = card
+    corner(heading,6)
+    gradient(heading, Color3.fromRGB(51,62,79), Color3.fromRGB(35,42,54), 0)
     local accent = Instance.new("Frame")
     accent.Size = UDim2.new(0,3,0,12)
     accent.Position = UDim2.new(0,7,.5,-6)
-    accent.BackgroundColor3 = C.blue
+    accent.BackgroundColor3 = C.ice
     accent.BorderSizePixel = 0
-    accent.Parent = box
+    accent.Parent = heading
+    gradient(accent, C.ice, C.blue, 90)
     corner(accent,3)
+    local title = label(heading,titleText,UDim2.new(1,-24,1,0),UDim2.fromOffset(16,0),10,C.text)
+    title.Font = Enum.Font.GothamBold
 
-    local heading = label(
-        box,text,
-        UDim2.new(1,-24,1,0),
-        UDim2.fromOffset(16,0),10,C.text
-    )
-    heading.Font = Enum.Font.GothamBold
-    heading.TextXAlignment = Enum.TextXAlignment.Left
+    local inner = Instance.new("Frame")
+    inner.Name = "GroupContent"
+    inner.BackgroundTransparency = 1
+    inner.BorderSizePixel = 0
+    inner.Position = UDim2.fromOffset(4,0)
+    inner.Size = UDim2.new(1,-8,0,0)
+    inner.AutomaticSize = Enum.AutomaticSize.Y
+    inner.LayoutOrder = 2
+    inner.Parent = card
+    local innerLayout = Instance.new("UIListLayout")
+    innerLayout.Padding = UDim.new(0,4)
+    innerLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    innerLayout.Parent = inner
+    return inner
+end
+
+local function section(text, side)
+    buildPage = createGroup(activeColumns,side or "Left",text)
 end
 
 local function makeInput(placeholder)
@@ -446,13 +483,13 @@ local function makeToggle(name, callback)
 end
 
 -- STAT
-section("STAT")
+section("STAT","Left")
 
 local statusRow = Instance.new("Frame")
 statusRow.Size = UDim2.new(1,-2,0,30)
 statusRow.BackgroundColor3 = C.panel2
 statusRow.BorderSizePixel = 0
-statusRow.Parent = page
+statusRow.Parent = buildPage
 corner(statusRow,7)
 
 label(
@@ -469,13 +506,13 @@ local status = label(
 status.TextXAlignment = Enum.TextXAlignment.Right
 
 -- GRID 5x5
-section("GRID")
+section("GRID","Left")
 
 local gridFrame = Instance.new("Frame")
 gridFrame.Size = UDim2.new(1,-2,0,142)
 gridFrame.BackgroundColor3 = C.panel2
 gridFrame.BorderSizePixel = 0
-gridFrame.Parent = page
+gridFrame.Parent = buildPage
 corner(gridFrame,8)
 
 local gridHolder = Instance.new("Frame")
@@ -529,17 +566,17 @@ for row = -2,2 do
 end
 
 -- BLOCK ID
-section("BLOCK ID")
+section("BLOCK ID","Left")
 local blockInput = makeInput("Enter Block ID")
 
 -- ATTACK SPEED
-section("ATTACK SPEED")
+section("ATTACK SPEED","Right")
 
 local speedRow = Instance.new("Frame")
 speedRow.Size = UDim2.new(1,-2,0,29)
 speedRow.BackgroundColor3 = C.panel2
 speedRow.BorderSizePixel = 0
-speedRow.Parent = page
+speedRow.Parent = buildPage
 corner(speedRow,7)
 
 local speed = 0.22
@@ -613,7 +650,7 @@ UIS.InputEnded:Connect(function(input)
 end)
 
 -- AUTO FARM
-section("AUTO FARM")
+section("AUTO FARM","Right")
 
 local farmEnabled = false
 local collectEnabled = false
@@ -623,7 +660,7 @@ local farmRow = Instance.new("Frame")
 farmRow.Size = UDim2.new(1,-2,0,31)
 farmRow.BackgroundColor3 = C.panel2
 farmRow.BorderSizePixel = 0
-farmRow.Parent = page
+farmRow.Parent = buildPage
 corner(farmRow,7)
 
 label(
@@ -651,7 +688,7 @@ farmButton.Activated:Connect(function()
 end)
 
 -- AUTO COLLECT
-section("AUTO COLLECT")
+section("AUTO COLLECT","Right")
 setCollectToggle = makeToggle("Enable Auto Collect", function(on)
     if on and not farmEnabled then
         collectEnabled = false
@@ -662,12 +699,14 @@ setCollectToggle = makeToggle("Enable Auto Collect", function(on)
 end)
 
 -- AUTO PLANT / HARVEST ditempatkan di tab AUTO FARM.
+activeColumns = farmColumns
 buildPage = farmPage
-section("AUTO PLANT / HARVEST")
+section("SEED / HARVEST ID","Left")
 local seedInput = makeInput("Seed ID")
 local harvestInput = makeInput("Harvest ID (ID tanaman matang)")
 local plantEnabled, harvestEnabled = false, false
 local setPlantToggle, setHarvestToggle
+section("AUTOMATION","Right")
 setPlantToggle = makeToggle("Enable Auto Plant", function(on)
     plantEnabled = on
 end)
@@ -676,24 +715,10 @@ setHarvestToggle = makeToggle("Enable Auto Harvest", function(on)
 end)
 
 -- AUTO DF UI (separate tab)
-local function dfSection(text)
-    local box = Instance.new("Frame")
-    box.Size = UDim2.new(1,-2,0,22)
-    box.BackgroundColor3 = C.panel2
-    box.BorderSizePixel = 0
-    box.Parent = dfPage
-    corner(box,6)
-    stroke(box,C.border)
-    local accent = Instance.new("Frame")
-    accent.Size = UDim2.new(0,3,0,12)
-    accent.Position = UDim2.new(0,7,.5,-6)
-    accent.BackgroundColor3 = C.blue
-    accent.BorderSizePixel = 0
-    accent.Parent = box
-    corner(accent,3)
-    local heading = label(box,text,UDim2.new(1,-24,1,0),UDim2.fromOffset(16,0),10,C.text)
-    heading.Font = Enum.Font.GothamBold
-    heading.TextXAlignment = Enum.TextXAlignment.Left
+activeColumns = dfColumns
+local dfBuildPage = dfPage
+local function dfSection(text,side)
+    dfBuildPage = createGroup(dfColumns,side or "Left",text)
 end
 
 local function dfInfoRow(titleText)
@@ -701,7 +726,7 @@ local function dfInfoRow(titleText)
     row.Size = UDim2.new(1,-2,0,27)
     row.BackgroundColor3 = C.panel2
     row.BorderSizePixel = 0
-    row.Parent = dfPage
+    row.Parent = dfBuildPage
     corner(row,7)
     label(row,titleText,UDim2.new(.5,0,1,0),UDim2.fromOffset(9,0),11,C.muted)
     local value = label(row,"--",UDim2.new(.5,-12,1,0),UDim2.new(.5,0,0,0),12,C.text)
@@ -710,10 +735,10 @@ local function dfInfoRow(titleText)
     return value
 end
 
-dfSection("CHARACTER POSITION")
+dfSection("CHARACTER POSITION","Left")
 local dfXValue = dfInfoRow("POSITION X")
 local dfYValue = dfInfoRow("POSITION Y")
-dfSection("DIRT FARM")
+dfSection("DIRT FARM","Right")
 local dfDescription = Instance.new("TextLabel")
 dfDescription.Size = UDim2.new(1,-2,0,54)
 dfDescription.BackgroundColor3 = C.panel2
@@ -723,13 +748,13 @@ dfDescription.TextSize = 10
 dfDescription.TextColor3 = C.muted
 dfDescription.TextWrapped = true
 dfDescription.Text = "Area X: 1-98 | Lane Y: 38, 40, 42... sampai bawah. Arah lane bergantian kanan-kiri."
-dfDescription.Parent = dfPage
+dfDescription.Parent = dfBuildPage
 corner(dfDescription,7)
 local dfStatus = dfInfoRow("DF STATUS")
 local dfEnabled = false
-local dfButton = button(dfPage,"START AUTO DF",UDim2.new(1,-2,0,30),UDim2.new(),C.green)
+local dfButton = button(dfBuildPage,"START AUTO DF",UDim2.new(1,-2,0,30),UDim2.new(),C.green)
 dfButton.TextSize = 11
-local dfStopHint = label(dfPage,"Matikan tombol untuk menghentikan proses.",UDim2.new(1,-4,0,22),UDim2.new(),10,C.muted)
+local dfStopHint = label(dfBuildPage,"Matikan tombol untuk menghentikan proses.",UDim2.new(1,-4,0,22),UDim2.new(),10,C.muted)
 dfStopHint.TextXAlignment = Enum.TextXAlignment.Center
 
 -- MISC: Anti Lava, GrowScan toggle + item ID lookup
@@ -737,30 +762,16 @@ dfStopHint.TextXAlignment = Enum.TextXAlignment.Center
 local antiLavaOn = false
 local startAntiLava, stopAntiLava
 
-local function miscSection(text)
-    local box = Instance.new("Frame")
-    box.Size = UDim2.new(1,-2,0,22)
-    box.BackgroundColor3 = C.panel2
-    box.BorderSizePixel = 0
-    box.Parent = miscPage
-    corner(box,6)
-    stroke(box,C.border)
-    local accent = Instance.new("Frame")
-    accent.Size = UDim2.new(0,3,0,12)
-    accent.Position = UDim2.new(0,7,.5,-6)
-    accent.BackgroundColor3 = C.blue
-    accent.BorderSizePixel = 0
-    accent.Parent = box
-    corner(accent,3)
-    local heading = label(box,text,UDim2.new(1,-24,1,0),UDim2.fromOffset(16,0),10,C.text)
-    heading.Font = Enum.Font.GothamBold
-    heading.TextXAlignment = Enum.TextXAlignment.Left
+activeColumns = miscColumns
+local miscBuildPage = miscPage
+local function miscSection(text,side)
+    miscBuildPage = createGroup(miscColumns,side or "Left",text)
 end
 
-miscSection("ANTI LAVA")
-local antiLavaButton = button(miscPage,"ANTI LAVA: OFF",UDim2.new(1,-2,0,30),UDim2.new(),C.green)
+miscSection("ANTI LAVA","Left")
+local antiLavaButton = button(miscBuildPage,"ANTI LAVA: OFF",UDim2.new(1,-2,0,30),UDim2.new(),C.green)
 antiLavaButton.TextSize = 11
-local antiLavaHint = label(miscPage,"Mencegah efek hazard seperti lava, spike, dan api.",UDim2.new(1,-4,0,27),UDim2.new(),10,C.muted)
+local antiLavaHint = label(miscBuildPage,"Mencegah efek hazard seperti lava, spike, dan api.",UDim2.new(1,-4,0,27),UDim2.new(),10,C.muted)
 antiLavaHint.TextXAlignment = Enum.TextXAlignment.Center
 
 local function refreshAntiLavaButton()
@@ -783,12 +794,12 @@ antiLavaButton.Activated:Connect(function()
     refreshAntiLavaButton()
 end)
 
-miscSection("GROWSCAN")
-local growScanButton = button(miscPage,"OPEN GROWSCAN",UDim2.new(1,-2,0,30),UDim2.new(),C.green)
+miscSection("GROWSCAN","Left")
+local growScanButton = button(miscBuildPage,"OPEN GROWSCAN",UDim2.new(1,-2,0,30),UDim2.new(),C.green)
 growScanButton.TextSize = 11
-local growScanHint = label(miscPage,"Buka atau tutup UI GrowScan bawaan game.",UDim2.new(1,-4,0,24),UDim2.new(),10,C.muted)
+local growScanHint = label(miscBuildPage,"Buka atau tutup UI GrowScan bawaan game.",UDim2.new(1,-4,0,24),UDim2.new(),10,C.muted)
 growScanHint.TextXAlignment = Enum.TextXAlignment.Center
-miscSection("CHECK ITEM ID")
+miscSection("CHECK ITEM ID","Right")
 local miscItemInput = Instance.new("TextBox")
 miscItemInput.Size = UDim2.new(1,-2,0,28)
 miscItemInput.BackgroundColor3 = C.panel2
@@ -800,10 +811,10 @@ miscItemInput.TextColor3 = C.text
 miscItemInput.TextSize = 11
 miscItemInput.Font = Enum.Font.Gotham
 miscItemInput.ClearTextOnFocus = false
-miscItemInput.Parent = miscPage
+miscItemInput.Parent = miscBuildPage
 corner(miscItemInput,7)
 stroke(miscItemInput,C.border)
-local checkIdButton = button(miscPage,"CHECK ITEM ID",UDim2.new(1,-2,0,29),UDim2.new(),C.blue)
+local checkIdButton = button(miscBuildPage,"CHECK ITEM ID",UDim2.new(1,-2,0,29),UDim2.new(),C.blue)
 checkIdButton.TextSize = 11
 local itemIdResult = Instance.new("TextLabel")
 itemIdResult.Size = UDim2.new(1,-2,0,38)
@@ -814,15 +825,15 @@ itemIdResult.Text = "Hasil ID akan muncul di sini."
 itemIdResult.TextColor3 = C.muted
 itemIdResult.TextSize = 11
 itemIdResult.TextWrapped = true
-itemIdResult.Parent = miscPage
+itemIdResult.Parent = miscBuildPage
 corner(itemIdResult,7)
 
-miscSection("SAVE / LOAD")
-local saveConfigButton = button(miscPage,"SAVE CONFIG",UDim2.new(1,-2,0,29),UDim2.new(),C.blue)
+miscSection("SAVE / LOAD","Right")
+local saveConfigButton = button(miscBuildPage,"SAVE CONFIG",UDim2.new(1,-2,0,29),UDim2.new(),C.blue)
 saveConfigButton.TextSize = 11
-local loadConfigButton = button(miscPage,"LOAD CONFIG",UDim2.new(1,-2,0,29),UDim2.new(),C.blue)
+local loadConfigButton = button(miscBuildPage,"LOAD CONFIG",UDim2.new(1,-2,0,29),UDim2.new(),C.blue)
 loadConfigButton.TextSize = 11
-local persistenceHint = label(miscPage,"Config tersimpan lokal jika executor mendukung file API.",UDim2.new(1,-4,0,30),UDim2.new(),10,C.muted)
+local persistenceHint = label(miscBuildPage,"Config tersimpan lokal jika executor mendukung file API.",UDim2.new(1,-4,0,30),UDim2.new(),10,C.muted)
 persistenceHint.TextXAlignment = Enum.TextXAlignment.Center
 
 local function saveCurrentConfig()
