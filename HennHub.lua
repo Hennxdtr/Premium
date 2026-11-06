@@ -19,6 +19,7 @@ local C = {
     panel = Color3.fromRGB(32,35,43),
     panel2 = Color3.fromRGB(39,42,51),
     border = Color3.fromRGB(65,69,80),
+    outline = Color3.fromRGB(220,223,230),
     text = Color3.fromRGB(230,232,238),
     muted = Color3.fromRGB(145,150,163),
     green = Color3.fromRGB(75,145,112),
@@ -32,6 +33,11 @@ gui.Name = "HennHubCustom"
 gui.ResetOnSpawn = false
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Parent = playerGui
+
+local status = Instance.new("TextLabel")
+status.Name = "InternalStatus"
+status.Visible = false
+status.Parent = gui
 
 local function corner(obj,radius)
     local c = Instance.new("UICorner")
@@ -315,7 +321,7 @@ local function makeInput(placeholder)
     box.ClearTextOnFocus = false
     box.Parent = page
     corner(box,7)
-    stroke(box,C.border)
+    stroke(box,C.outline)
     return box
 end
 
@@ -326,6 +332,7 @@ local function makeToggle(name, callback)
     row.BorderSizePixel = 0
     row.Parent = page
     corner(row,7)
+    stroke(row,C.outline)
 
     label(
         row,name,
@@ -354,29 +361,6 @@ local function makeToggle(name, callback)
     return setState
 end
 
--- STAT
-section("STAT")
-
-local statusRow = Instance.new("Frame")
-statusRow.Size = UDim2.new(1,-2,0,34)
-statusRow.BackgroundColor3 = C.panel2
-statusRow.BorderSizePixel = 0
-statusRow.Parent = page
-corner(statusRow,7)
-
-label(
-    statusRow,"STATUS",
-    UDim2.new(.5,0,1,0),
-    UDim2.fromOffset(9,0),11,C.muted
-)
-
-local status = label(
-    statusRow,"IDLE",
-    UDim2.new(.5,-9,1,0),
-    UDim2.new(.5,0,0,0),11,C.red
-)
-status.TextXAlignment = Enum.TextXAlignment.Right
-
 -- GRID 5x5
 section("GRID")
 
@@ -386,6 +370,7 @@ gridFrame.BackgroundColor3 = C.panel2
 gridFrame.BorderSizePixel = 0
 gridFrame.Parent = page
 corner(gridFrame,8)
+    stroke(gridFrame,C.outline)
 
 local gridHolder = Instance.new("Frame")
 gridHolder.AnchorPoint = Vector2.new(.5,.5)
@@ -438,11 +423,11 @@ for row = -2,2 do
 end
 
 -- BLOCK ID
-section("BLOCK ID")
-local blockInput = makeInput("Enter Block ID")
+section("BLOCK")
+local blockInput = makeInput("Block ID")
 
 -- ATTACK SPEED
-section("ATTACK SPEED")
+section("SPEED")
 
 local speedRow = Instance.new("Frame")
 speedRow.Size = UDim2.new(1,-2,0,45)
@@ -450,6 +435,7 @@ speedRow.BackgroundColor3 = C.panel2
 speedRow.BorderSizePixel = 0
 speedRow.Parent = page
 corner(speedRow,7)
+    stroke(speedRow,C.outline)
 
 local speed = 0.22
 
@@ -534,9 +520,10 @@ farmRow.BackgroundColor3 = C.panel2
 farmRow.BorderSizePixel = 0
 farmRow.Parent = page
 corner(farmRow,7)
+    stroke(farmRow,C.outline)
 
 label(
-    farmRow,"Enable Auto Farm",
+    farmRow,"Auto Farm",
     UDim2.new(1,-60,1,0),
     UDim2.fromOffset(9,0),11,C.text
 )
@@ -552,15 +539,13 @@ local function setFarmEnabled(on)
     farmEnabled = on and true or false
     farmButton.Text = farmEnabled and "ON" or "OFF"
     farmButton.BackgroundColor3 = farmEnabled and C.green or C.red
-    status.Text = farmEnabled and "ON" or "IDLE"
-    status.TextColor3 = farmEnabled and C.green or C.red
     if not farmEnabled and setCollectToggle then setCollectToggle(false) end
 end
 farmButton.Activated:Connect(function() setFarmEnabled(not farmEnabled) end)
 
 -- AUTO COLLECT
-section("AUTO COLLECT")
-setCollectToggle = makeToggle("Enable Auto Collect", function(on)
+section("COLLECT")
+setCollectToggle = makeToggle("Auto Collect", function(on)
     if on and not farmEnabled then
         collectEnabled = false
         if setCollectToggle then setCollectToggle(false) end
@@ -572,15 +557,15 @@ end)
 -- AUTO PLANT / HARVEST: controls live in the dedicated Auto Farm tab.
 page = plantPage
 section("AUTO PLANT")
-local seedInput = makeInput("Auto Plant ID / Seed ID")
+local seedInput = makeInput("Seed ID")
 local plantEnabled, harvestEnabled = false, false
 local setPlantToggle, setHarvestToggle
-setPlantToggle = makeToggle("Enable Auto Plant", function(on)
+setPlantToggle = makeToggle("Auto Plant", function(on)
     plantEnabled = on
 end)
 section("HARVEST")
-local harvestInput = makeInput("Harvest ID (ID tanaman matang)")
-setHarvestToggle = makeToggle("Enable Auto Harvest", function(on)
+local harvestInput = makeInput("Harvest ID")
+setHarvestToggle = makeToggle("Harvest", function(on)
     harvestEnabled = on
 end)
 page = pnbPage
@@ -609,13 +594,14 @@ local function dfInfoRow(titleText)
     local value = label(row,"--",UDim2.new(.5,-12,1,0),UDim2.new(.5,0,0,0),12,C.text)
     value.TextXAlignment = Enum.TextXAlignment.Right
     value.Font = Enum.Font.GothamBold
+    stroke(row,C.outline)
     return value
 end
 
-dfSection("CHARACTER POSITION")
-local dfXValue = dfInfoRow("POSITION X")
-local dfYValue = dfInfoRow("POSITION Y")
-dfSection("DIRT FARM")
+dfSection("POSITION")
+local dfXValue = dfInfoRow("X")
+local dfYValue = dfInfoRow("Y")
+dfSection("DIRT")
 local dfDescription = Instance.new("TextLabel")
 dfDescription.Size = UDim2.new(1,-2,0,54)
 dfDescription.BackgroundColor3 = C.panel2
@@ -627,9 +613,10 @@ dfDescription.TextWrapped = true
 dfDescription.Text = "Area X: 1-98 | Lane Y: 38, 40, 42... sampai bawah. Arah lane bergantian kanan-kiri."
 dfDescription.Parent = dfPage
 corner(dfDescription,7)
-local dfStatus = dfInfoRow("DF STATUS")
+    stroke(dfDescription,C.outline)
+local dfStatus = dfInfoRow("STATUS")
 local dfEnabled = false
-local dfButton = button(dfPage,"START AUTO DF",UDim2.new(1,-2,0,36),UDim2.new(),C.green)
+local dfButton = button(dfPage,"START",UDim2.new(1,-2,0,36),UDim2.new(),C.green)
 dfButton.TextSize = 11
 local dfStopHint = label(dfPage,"Matikan tombol untuk menghentikan proses.",UDim2.new(1,-4,0,22),UDim2.new(),10,C.muted)
 dfStopHint.TextXAlignment = Enum.TextXAlignment.Center
@@ -652,13 +639,13 @@ local function miscSection(text)
 end
 
 miscSection("ANTI LAVA")
-local antiLavaButton = button(miscPage,"ANTI LAVA: OFF",UDim2.new(1,-2,0,36),UDim2.new(),C.green)
+local antiLavaButton = button(miscPage,"LAVA: OFF",UDim2.new(1,-2,0,36),UDim2.new(),C.green)
 antiLavaButton.TextSize = 11
 local antiLavaHint = label(miscPage,"Mencegah efek hazard seperti lava, spike, dan api.",UDim2.new(1,-4,0,27),UDim2.new(),10,C.muted)
 antiLavaHint.TextXAlignment = Enum.TextXAlignment.Center
 
 local function refreshAntiLavaButton()
-    antiLavaButton.Text = antiLavaOn and "ANTI LAVA: ON" or "ANTI LAVA: OFF"
+    antiLavaButton.Text = antiLavaOn and "LAVA: ON" or "LAVA: OFF"
     antiLavaButton.BackgroundColor3 = antiLavaOn and C.red or C.green
 end
 
@@ -682,7 +669,7 @@ local growScanButton = button(miscPage,"OPEN GROWSCAN",UDim2.new(1,-2,0,36),UDim
 growScanButton.TextSize = 11
 local growScanHint = label(miscPage,"Buka atau tutup UI GrowScan bawaan game.",UDim2.new(1,-4,0,24),UDim2.new(),10,C.muted)
 growScanHint.TextXAlignment = Enum.TextXAlignment.Center
-miscSection("CHECK ITEM ID")
+miscSection("ITEM ID")
 local miscItemInput = Instance.new("TextBox")
 miscItemInput.Size = UDim2.new(1,-2,0,34)
 miscItemInput.BackgroundColor3 = C.panel2
@@ -696,8 +683,8 @@ miscItemInput.Font = Enum.Font.Gotham
 miscItemInput.ClearTextOnFocus = false
 miscItemInput.Parent = miscPage
 corner(miscItemInput,7)
-stroke(miscItemInput,C.border)
-local checkIdButton = button(miscPage,"CHECK ITEM ID",UDim2.new(1,-2,0,34),UDim2.new(),C.blue)
+stroke(miscItemInput,C.outline)
+local checkIdButton = button(miscPage,"ITEM ID",UDim2.new(1,-2,0,34),UDim2.new(),C.blue)
 checkIdButton.TextSize = 11
 local itemIdResult = Instance.new("TextLabel")
 itemIdResult.Size = UDim2.new(1,-2,0,48)
@@ -710,6 +697,7 @@ itemIdResult.TextSize = 11
 itemIdResult.TextWrapped = true
 itemIdResult.Parent = miscPage
 corner(itemIdResult,7)
+    stroke(itemIdResult,C.outline)
 
 -- SETTING: named configs with persistent storage (executor file APIs)
 local function settingSection(text)
@@ -731,7 +719,7 @@ local function settingInput(placeholder)
     box.Font = Enum.Font.Gotham
     box.ClearTextOnFocus = false
     box.Parent = settingPage
-    corner(box,7); stroke(box,C.border)
+    corner(box,7); stroke(box,C.outline)
     return box
 end
 settingSection("CONFIGURATION MANAGER")
@@ -739,8 +727,8 @@ local configNameInput = settingInput("Nama config, contoh: Farm-01")
 local configLoadInput = settingInput("Nama config yang ingin di-load")
 local configStatus = label(settingPage,"Config belum disimpan.",UDim2.new(1,-4,0,32),UDim2.new(),10,C.muted)
 configStatus.TextWrapped = true
-local saveConfigButton = button(settingPage,"SAVE CONFIG",UDim2.new(1,-2,0,34),UDim2.new(),C.blue)
-local loadConfigButton = button(settingPage,"LOAD CONFIG",UDim2.new(1,-2,0,34),UDim2.new(),C.green)
+local saveConfigButton = button(settingPage,"SAVE",UDim2.new(1,-2,0,34),UDim2.new(),C.blue)
+local loadConfigButton = button(settingPage,"LOAD",UDim2.new(1,-2,0,34),UDim2.new(),C.green)
 local autoLoadButton = button(settingPage,"AUTO LOAD: OFF",UDim2.new(1,-2,0,34),UDim2.new(),C.red)
 local autoLoadEnabled = false
 local CONFIG_DIR = "HennHub/Configs"
@@ -876,7 +864,7 @@ local function makeGroupCard(parent, titleText, items, width)
     card.BorderSizePixel = 0
     card.Parent = parent
     corner(card, 9)
-    stroke(card, C.border)
+    stroke(card, C.outline)
 
     local pad = Instance.new("UIPadding")
     pad.PaddingTop = UDim.new(0, 8)
@@ -918,7 +906,7 @@ local function makeGroupCard(parent, titleText, items, width)
         item.Parent = body
         if item:IsA("GuiObject") then
             item.Position = UDim2.new(0, 0, 0, 0)
-            item.Size = UDim2.new(1, -2, item.Size.Y.Scale, item.Size.Y.Offset)
+            item.Size = UDim2.new(1, 0, item.Size.Y.Scale, item.Size.Y.Offset)
         end
     end
     return card
@@ -961,7 +949,7 @@ local function rebuildAsGroupboxes(scroll, pageName)
     local columnGroups = {}
     for _, group in ipairs(groups) do
         if #group.items > 0 then
-            if #groups == 1 or group.title:upper() == "STAT" or group.title:upper() == "GRID" then
+            if #groups == 1 or group.title:upper() == "GRID" then
                 table.insert(fullWidthGroups, group)
             else
                 table.insert(columnGroups, group)
@@ -1810,7 +1798,7 @@ local function runAutoDF(token)
         dfStatus.Text = "WORLD / NAV ERROR"
         if token == dfToken then
             dfEnabled = false
-            dfButton.Text = "START AUTO DF"
+            dfButton.Text = "START"
             dfButton.BackgroundColor3 = C.green
         end
         return
@@ -1828,7 +1816,7 @@ local function runAutoDF(token)
         dfStatus.Text = "DIRT / HIT NOT FOUND"
         if token == dfToken then
             dfEnabled = false
-            dfButton.Text = "START AUTO DF"
+            dfButton.Text = "START"
             dfButton.BackgroundColor3 = C.green
         end
         return
@@ -2130,7 +2118,7 @@ local function runAutoDF(token)
 
     if token == dfToken then
         dfEnabled = false
-        dfButton.Text = "START AUTO DF"
+        dfButton.Text = "START"
         dfButton.BackgroundColor3 = C.green
         dfStatus.Text = cancelled() and "STOPPED" or "COMPLETE"
     end
@@ -2140,14 +2128,14 @@ dfButton.Activated:Connect(function()
     if dfEnabled then
         dfEnabled = false
         dfToken += 1
-        dfButton.Text = "START AUTO DF"
+        dfButton.Text = "START"
         dfButton.BackgroundColor3 = C.green
         dfStatus.Text = "STOPPED"
     else
         dfEnabled = true
         dfToken += 1
         local token = dfToken
-        dfButton.Text = "STOP AUTO DF"
+        dfButton.Text = "STOP"
         dfButton.BackgroundColor3 = C.red
         dfStatus.Text = "STARTING"
         task.spawn(function()
@@ -2156,7 +2144,7 @@ dfButton.Activated:Connect(function()
                 warn("[HennHub] Auto DF error: " .. tostring(err))
                 if token == dfToken then
                     dfEnabled = false
-                    dfButton.Text = "START AUTO DF"
+                    dfButton.Text = "START"
                     dfButton.BackgroundColor3 = C.green
                     dfStatus.Text = "ERROR"
                 end
