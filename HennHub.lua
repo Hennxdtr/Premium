@@ -128,7 +128,7 @@ local main = Instance.new("Frame")
 main.Name = "Main"
 main.AnchorPoint = Vector2.new(.5,.5)
 main.Position = UDim2.fromScale(.5,.5)
-main.Size = UDim2.new(.92,0,.76,0)
+main.Size = UDim2.fromOffset(720, 480)
 main.BackgroundColor3 = C.bg
 main.BorderSizePixel = 0
 main.Parent = gui
@@ -136,8 +136,8 @@ corner(main,12)
 stroke(main,C.border)
 
 local constraint = Instance.new("UISizeConstraint")
-constraint.MinSize = Vector2.new(300,340)
-constraint.MaxSize = Vector2.new(500,440)
+constraint.MinSize = Vector2.new(270,300)
+constraint.MaxSize = Vector2.new(720,480)
 constraint.Parent = main
 
 -- HEADER + TOP TAB BAR
@@ -201,25 +201,81 @@ content.BorderSizePixel = 0
 content.Parent = main
 corner(content,9)
 
+-- RESPONSIVE LAYOUT: menyesuaikan panel dan tombol dengan ukuran layar.
+local camera = workspace.CurrentCamera
+local function updateResponsiveLayout()
+    camera = workspace.CurrentCamera or camera
+    if not camera then return end
+    local viewport = camera.ViewportSize
+    local panelWidth = math.clamp(math.floor(viewport.X * 0.86), 270, 720)
+    local panelHeight = math.clamp(math.floor(viewport.Y * 0.72), 320, 480)
+    panelWidth = math.min(panelWidth, math.max(270, viewport.X - 16))
+    panelHeight = math.min(panelHeight, math.max(300, viewport.Y - 24))
+    main.Size = UDim2.fromOffset(panelWidth, panelHeight)
+
+    local compactHeader = viewport.X < 520
+    local headerHeight = compactHeader and 72 or 40
+    header.Size = UDim2.new(1,0,0,headerHeight)
+    content.Position = UDim2.fromOffset(6, headerHeight + 5)
+    content.Size = UDim2.new(1,-12,1,-(headerHeight + 11))
+
+    if compactHeader then
+        titleButton.Size = UDim2.fromOffset(82,25)
+        titleButton.Position = UDim2.fromOffset(8,5)
+        close.Size = UDim2.fromOffset(27,23)
+        close.Position = UDim2.new(1,-35,0,6)
+        local gap, left, usable = 4, 8, panelWidth - 16
+        local widths = {
+            math.floor(usable * 0.26),
+            math.floor(usable * 0.28),
+            math.floor(usable * 0.22),
+        }
+        widths[4] = usable - widths[1] - widths[2] - widths[3] - gap * 3
+        local tabs = {tab, farmTab, dfTab, miscTab}
+        for i, item in ipairs(tabs) do
+            item.Size = UDim2.fromOffset(widths[i],27)
+            item.Position = UDim2.fromOffset(left,43)
+            left += widths[i] + gap
+        end
+    else
+        titleButton.Size = UDim2.fromOffset(74,27)
+        titleButton.Position = UDim2.fromOffset(8,7)
+        tab.Size = UDim2.fromOffset(72,27)
+        tab.Position = UDim2.fromOffset(86,7)
+        farmTab.Size = UDim2.fromOffset(68,27)
+        farmTab.Position = UDim2.fromOffset(162,7)
+        dfTab.Size = UDim2.fromOffset(60,27)
+        dfTab.Position = UDim2.fromOffset(234,7)
+        miscTab.Size = UDim2.fromOffset(42,27)
+        miscTab.Position = UDim2.fromOffset(298,7)
+        close.Size = UDim2.fromOffset(26,24)
+        close.Position = UDim2.new(1,-34,0,9)
+    end
+
+    local floatSize = math.clamp(math.floor(math.min(viewport.X, viewport.Y) * 0.105), 38, 46)
+    openButton.Size = UDim2.fromOffset(floatSize, floatSize)
+    openButton.Position = UDim2.new(0, 12, 0.5, -floatSize/2)
+end
+
 local pageTitle = label(
     content,"AUTO PNB",
-    UDim2.new(1,-18,0,29),
-    UDim2.fromOffset(10,5),13,C.text
+    UDim2.new(1,-18,0,18),
+    UDim2.fromOffset(9,1),11,C.text
 )
 pageTitle.Font = Enum.Font.GothamBold
 
 local page = Instance.new("ScrollingFrame")
-page.Position = UDim2.fromOffset(7,37)
-page.Size = UDim2.new(1,-14,1,-44)
+page.Position = UDim2.fromOffset(6,23)
+page.Size = UDim2.new(1,-12,1,-28)
 page.BackgroundTransparency = 1
 page.BorderSizePixel = 0
-page.ScrollBarThickness = 3
+page.ScrollBarThickness = 2
 page.ScrollBarImageColor3 = C.border
 page.CanvasSize = UDim2.new(0,0,0,0)
 page.Parent = content
 
 local layout = Instance.new("UIListLayout")
-layout.Padding = UDim.new(0,7)
+layout.Padding = UDim.new(0,5)
 layout.SortOrder = Enum.SortOrder.LayoutOrder
 layout.Parent = page
 
@@ -231,17 +287,17 @@ end)
 
 -- Halaman AUTO FARM khusus Plant / Harvest.
 local farmPage = Instance.new("ScrollingFrame")
-farmPage.Position = UDim2.fromOffset(7,37)
-farmPage.Size = UDim2.new(1,-14,1,-44)
+farmPage.Position = UDim2.fromOffset(6,23)
+farmPage.Size = UDim2.new(1,-12,1,-28)
 farmPage.BackgroundTransparency = 1
 farmPage.BorderSizePixel = 0
-farmPage.ScrollBarThickness = 3
+farmPage.ScrollBarThickness = 2
 farmPage.ScrollBarImageColor3 = C.border
 farmPage.CanvasSize = UDim2.new(0,0,0,0)
 farmPage.Visible = false
 farmPage.Parent = content
 local farmLayout = Instance.new("UIListLayout")
-farmLayout.Padding = UDim.new(0,7)
+farmLayout.Padding = UDim.new(0,5)
 farmLayout.SortOrder = Enum.SortOrder.LayoutOrder
 farmLayout.Parent = farmPage
 farmLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
@@ -249,18 +305,18 @@ farmLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
 end)
 
 local dfPage = Instance.new("ScrollingFrame")
-dfPage.Position = UDim2.fromOffset(7,37)
-dfPage.Size = UDim2.new(1,-14,1,-44)
+dfPage.Position = UDim2.fromOffset(6,23)
+dfPage.Size = UDim2.new(1,-12,1,-28)
 dfPage.BackgroundTransparency = 1
 dfPage.BorderSizePixel = 0
-dfPage.ScrollBarThickness = 3
+dfPage.ScrollBarThickness = 2
 dfPage.ScrollBarImageColor3 = C.border
 dfPage.CanvasSize = UDim2.new(0,0,0,0)
 dfPage.Visible = false
 dfPage.Parent = content
 
 local dfLayout = Instance.new("UIListLayout")
-dfLayout.Padding = UDim.new(0,7)
+dfLayout.Padding = UDim.new(0,5)
 dfLayout.SortOrder = Enum.SortOrder.LayoutOrder
 dfLayout.Parent = dfPage
 
@@ -269,18 +325,18 @@ dfLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
 end)
 
 local miscPage = Instance.new("ScrollingFrame")
-miscPage.Position = UDim2.fromOffset(7,37)
-miscPage.Size = UDim2.new(1,-14,1,-44)
+miscPage.Position = UDim2.fromOffset(6,23)
+miscPage.Size = UDim2.new(1,-12,1,-28)
 miscPage.BackgroundTransparency = 1
 miscPage.BorderSizePixel = 0
-miscPage.ScrollBarThickness = 3
+miscPage.ScrollBarThickness = 2
 miscPage.ScrollBarImageColor3 = C.border
 miscPage.CanvasSize = UDim2.new(0,0,0,0)
 miscPage.Visible = false
 miscPage.Parent = content
 
 local miscLayout = Instance.new("UIListLayout")
-miscLayout.Padding = UDim.new(0,7)
+miscLayout.Padding = UDim.new(0,5)
 miscLayout.SortOrder = Enum.SortOrder.LayoutOrder
 miscLayout.Parent = miscPage
 miscLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
@@ -310,31 +366,42 @@ miscTab.Activated:Connect(function() switchPage("misc") end)
 -- SECTION: CENTERED TITLE, NO GRAY BACKGROUND
 local buildPage = page
 local function section(text)
+    -- Groupbox-style heading inspired by the reference UI, retaining HennHub colors.
     local box = Instance.new("Frame")
-    box.Size = UDim2.new(1,-2,0,27)
-    box.BackgroundTransparency = 1
+    box.Size = UDim2.new(1,-2,0,22)
+    box.BackgroundColor3 = C.panel2
     box.BorderSizePixel = 0
     box.Parent = buildPage
+    corner(box,6)
+    stroke(box,C.border)
+
+    local accent = Instance.new("Frame")
+    accent.Size = UDim2.new(0,3,0,12)
+    accent.Position = UDim2.new(0,7,.5,-6)
+    accent.BackgroundColor3 = C.blue
+    accent.BorderSizePixel = 0
+    accent.Parent = box
+    corner(accent,3)
 
     local heading = label(
         box,text,
-        UDim2.new(1,-15,1,0),
-        UDim2.fromOffset(9,0),10,C.text
+        UDim2.new(1,-24,1,0),
+        UDim2.fromOffset(16,0),10,C.text
     )
     heading.Font = Enum.Font.GothamBold
-    heading.TextXAlignment = Enum.TextXAlignment.Center
+    heading.TextXAlignment = Enum.TextXAlignment.Left
 end
 
 local function makeInput(placeholder)
     local box = Instance.new("TextBox")
-    box.Size = UDim2.new(1,-2,0,34)
+    box.Size = UDim2.new(1,-2,0,30)
     box.BackgroundColor3 = C.panel2
     box.BorderSizePixel = 0
     box.Text = ""
     box.PlaceholderText = placeholder
     box.PlaceholderColor3 = C.muted
     box.TextColor3 = C.text
-    box.TextSize = 12
+    box.TextSize = 11
     box.Font = Enum.Font.Gotham
     box.ClearTextOnFocus = false
     box.Parent = buildPage
@@ -345,7 +412,7 @@ end
 
 local function makeToggle(name, callback)
     local row = Instance.new("Frame")
-    row.Size = UDim2.new(1,-2,0,36)
+    row.Size = UDim2.new(1,-2,0,32)
     row.BackgroundColor3 = C.panel2
     row.BorderSizePixel = 0
     row.Parent = buildPage
@@ -360,8 +427,8 @@ local function makeToggle(name, callback)
     local state = false
     local btn = button(
         row,"OFF",
-        UDim2.fromOffset(43,22),
-        UDim2.new(1,-49,.5,-11),C.red
+        UDim2.fromOffset(38,18),
+        UDim2.new(1,-44,.5,-9),C.red
     )
     btn.TextSize = 10
 
@@ -382,7 +449,7 @@ end
 section("STAT")
 
 local statusRow = Instance.new("Frame")
-statusRow.Size = UDim2.new(1,-2,0,34)
+statusRow.Size = UDim2.new(1,-2,0,30)
 statusRow.BackgroundColor3 = C.panel2
 statusRow.BorderSizePixel = 0
 statusRow.Parent = page
@@ -405,7 +472,7 @@ status.TextXAlignment = Enum.TextXAlignment.Right
 section("GRID")
 
 local gridFrame = Instance.new("Frame")
-gridFrame.Size = UDim2.new(1,-2,0,190)
+gridFrame.Size = UDim2.new(1,-2,0,142)
 gridFrame.BackgroundColor3 = C.panel2
 gridFrame.BorderSizePixel = 0
 gridFrame.Parent = page
@@ -414,13 +481,13 @@ corner(gridFrame,8)
 local gridHolder = Instance.new("Frame")
 gridHolder.AnchorPoint = Vector2.new(.5,.5)
 gridHolder.Position = UDim2.fromScale(.5,.5)
-gridHolder.Size = UDim2.new(.85,0,.85,0)
+gridHolder.Size = UDim2.new(0,132,0,132)
 gridHolder.BackgroundTransparency = 1
 gridHolder.Parent = gridFrame
 
 local gridLayout = Instance.new("UIGridLayout")
-gridLayout.CellSize = UDim2.new(.18,0,.18,0)
-gridLayout.CellPadding = UDim2.new(.02,0,.02,0)
+gridLayout.CellSize = UDim2.fromOffset(22,22)
+gridLayout.CellPadding = UDim2.fromOffset(3,3)
 gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 gridLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 gridLayout.Parent = gridHolder
@@ -469,7 +536,7 @@ local blockInput = makeInput("Enter Block ID")
 section("ATTACK SPEED")
 
 local speedRow = Instance.new("Frame")
-speedRow.Size = UDim2.new(1,-2,0,45)
+speedRow.Size = UDim2.new(1,-2,0,29)
 speedRow.BackgroundColor3 = C.panel2
 speedRow.BorderSizePixel = 0
 speedRow.Parent = page
@@ -491,8 +558,8 @@ local speedText = label(
 speedText.TextXAlignment = Enum.TextXAlignment.Right
 
 local slider = Instance.new("TextButton")
-slider.Size = UDim2.new(1,-18,0,7)
-slider.Position = UDim2.fromOffset(9,29)
+slider.Size = UDim2.new(1,-18,0,6)
+slider.Position = UDim2.fromOffset(9,22)
 slider.BackgroundColor3 = C.border
 slider.Text = ""
 slider.Parent = speedRow
@@ -553,7 +620,7 @@ local collectEnabled = false
 local setCollectToggle
 
 local farmRow = Instance.new("Frame")
-farmRow.Size = UDim2.new(1,-2,0,36)
+farmRow.Size = UDim2.new(1,-2,0,31)
 farmRow.BackgroundColor3 = C.panel2
 farmRow.BorderSizePixel = 0
 farmRow.Parent = page
@@ -567,8 +634,8 @@ label(
 
 local farmButton = button(
     farmRow,"OFF",
-    UDim2.fromOffset(43,22),
-    UDim2.new(1,-49,.5,-11),C.red
+    UDim2.fromOffset(38,18),
+    UDim2.new(1,-44,.5,-9),C.red
 )
 farmButton.TextSize = 10
 
@@ -611,18 +678,27 @@ end)
 -- AUTO DF UI (separate tab)
 local function dfSection(text)
     local box = Instance.new("Frame")
-    box.Size = UDim2.new(1,-2,0,27)
-    box.BackgroundTransparency = 1
+    box.Size = UDim2.new(1,-2,0,22)
+    box.BackgroundColor3 = C.panel2
     box.BorderSizePixel = 0
     box.Parent = dfPage
-    local heading = label(box,text,UDim2.new(1,-15,1,0),UDim2.fromOffset(9,0),10,C.text)
+    corner(box,6)
+    stroke(box,C.border)
+    local accent = Instance.new("Frame")
+    accent.Size = UDim2.new(0,3,0,12)
+    accent.Position = UDim2.new(0,7,.5,-6)
+    accent.BackgroundColor3 = C.blue
+    accent.BorderSizePixel = 0
+    accent.Parent = box
+    corner(accent,3)
+    local heading = label(box,text,UDim2.new(1,-24,1,0),UDim2.fromOffset(16,0),10,C.text)
     heading.Font = Enum.Font.GothamBold
-    heading.TextXAlignment = Enum.TextXAlignment.Center
+    heading.TextXAlignment = Enum.TextXAlignment.Left
 end
 
 local function dfInfoRow(titleText)
     local row = Instance.new("Frame")
-    row.Size = UDim2.new(1,-2,0,38)
+    row.Size = UDim2.new(1,-2,0,27)
     row.BackgroundColor3 = C.panel2
     row.BorderSizePixel = 0
     row.Parent = dfPage
@@ -651,7 +727,7 @@ dfDescription.Parent = dfPage
 corner(dfDescription,7)
 local dfStatus = dfInfoRow("DF STATUS")
 local dfEnabled = false
-local dfButton = button(dfPage,"START AUTO DF",UDim2.new(1,-2,0,36),UDim2.new(),C.green)
+local dfButton = button(dfPage,"START AUTO DF",UDim2.new(1,-2,0,30),UDim2.new(),C.green)
 dfButton.TextSize = 11
 local dfStopHint = label(dfPage,"Matikan tombol untuk menghentikan proses.",UDim2.new(1,-4,0,22),UDim2.new(),10,C.muted)
 dfStopHint.TextXAlignment = Enum.TextXAlignment.Center
@@ -663,17 +739,26 @@ local startAntiLava, stopAntiLava
 
 local function miscSection(text)
     local box = Instance.new("Frame")
-    box.Size = UDim2.new(1,-2,0,27)
-    box.BackgroundTransparency = 1
+    box.Size = UDim2.new(1,-2,0,22)
+    box.BackgroundColor3 = C.panel2
     box.BorderSizePixel = 0
     box.Parent = miscPage
-    local heading = label(box,text,UDim2.new(1,-15,1,0),UDim2.fromOffset(9,0),10,C.text)
+    corner(box,6)
+    stroke(box,C.border)
+    local accent = Instance.new("Frame")
+    accent.Size = UDim2.new(0,3,0,12)
+    accent.Position = UDim2.new(0,7,.5,-6)
+    accent.BackgroundColor3 = C.blue
+    accent.BorderSizePixel = 0
+    accent.Parent = box
+    corner(accent,3)
+    local heading = label(box,text,UDim2.new(1,-24,1,0),UDim2.fromOffset(16,0),10,C.text)
     heading.Font = Enum.Font.GothamBold
-    heading.TextXAlignment = Enum.TextXAlignment.Center
+    heading.TextXAlignment = Enum.TextXAlignment.Left
 end
 
 miscSection("ANTI LAVA")
-local antiLavaButton = button(miscPage,"ANTI LAVA: OFF",UDim2.new(1,-2,0,36),UDim2.new(),C.green)
+local antiLavaButton = button(miscPage,"ANTI LAVA: OFF",UDim2.new(1,-2,0,30),UDim2.new(),C.green)
 antiLavaButton.TextSize = 11
 local antiLavaHint = label(miscPage,"Mencegah efek hazard seperti lava, spike, dan api.",UDim2.new(1,-4,0,27),UDim2.new(),10,C.muted)
 antiLavaHint.TextXAlignment = Enum.TextXAlignment.Center
@@ -699,13 +784,13 @@ antiLavaButton.Activated:Connect(function()
 end)
 
 miscSection("GROWSCAN")
-local growScanButton = button(miscPage,"OPEN GROWSCAN",UDim2.new(1,-2,0,36),UDim2.new(),C.green)
+local growScanButton = button(miscPage,"OPEN GROWSCAN",UDim2.new(1,-2,0,30),UDim2.new(),C.green)
 growScanButton.TextSize = 11
 local growScanHint = label(miscPage,"Buka atau tutup UI GrowScan bawaan game.",UDim2.new(1,-4,0,24),UDim2.new(),10,C.muted)
 growScanHint.TextXAlignment = Enum.TextXAlignment.Center
 miscSection("CHECK ITEM ID")
 local miscItemInput = Instance.new("TextBox")
-miscItemInput.Size = UDim2.new(1,-2,0,34)
+miscItemInput.Size = UDim2.new(1,-2,0,28)
 miscItemInput.BackgroundColor3 = C.panel2
 miscItemInput.BorderSizePixel = 0
 miscItemInput.Text = ""
@@ -718,10 +803,10 @@ miscItemInput.ClearTextOnFocus = false
 miscItemInput.Parent = miscPage
 corner(miscItemInput,7)
 stroke(miscItemInput,C.border)
-local checkIdButton = button(miscPage,"CHECK ITEM ID",UDim2.new(1,-2,0,34),UDim2.new(),C.blue)
+local checkIdButton = button(miscPage,"CHECK ITEM ID",UDim2.new(1,-2,0,29),UDim2.new(),C.blue)
 checkIdButton.TextSize = 11
 local itemIdResult = Instance.new("TextLabel")
-itemIdResult.Size = UDim2.new(1,-2,0,48)
+itemIdResult.Size = UDim2.new(1,-2,0,38)
 itemIdResult.BackgroundColor3 = C.panel2
 itemIdResult.BorderSizePixel = 0
 itemIdResult.Font = Enum.Font.Gotham
@@ -733,9 +818,9 @@ itemIdResult.Parent = miscPage
 corner(itemIdResult,7)
 
 miscSection("SAVE / LOAD")
-local saveConfigButton = button(miscPage,"SAVE CONFIG",UDim2.new(1,-2,0,34),UDim2.new(),C.blue)
+local saveConfigButton = button(miscPage,"SAVE CONFIG",UDim2.new(1,-2,0,29),UDim2.new(),C.blue)
 saveConfigButton.TextSize = 11
-local loadConfigButton = button(miscPage,"LOAD CONFIG",UDim2.new(1,-2,0,34),UDim2.new(),C.blue)
+local loadConfigButton = button(miscPage,"LOAD CONFIG",UDim2.new(1,-2,0,29),UDim2.new(),C.blue)
 loadConfigButton.TextSize = 11
 local persistenceHint = label(miscPage,"Config tersimpan lokal jika executor mendukung file API.",UDim2.new(1,-4,0,30),UDim2.new(),10,C.muted)
 persistenceHint.TextXAlignment = Enum.TextXAlignment.Center
@@ -789,17 +874,29 @@ end)
 -- FLOATING BUTTON
 local openButton = button(
     gui,"H",
-    UDim2.fromOffset(43,43),
-    UDim2.new(0,14,.5,-20),
+    UDim2.fromOffset(42,42),
+    UDim2.new(0,10,.5,-21),
     C.panel
 )
 
 openButton.Visible = false
 openButton.TextColor3 = C.green
-openButton.TextSize = 20
+openButton.TextSize = 18
 openButton.Font = Enum.Font.GothamBold
 corner(openButton,50)
 stroke(openButton,C.green)
+
+updateResponsiveLayout()
+if camera then
+    camera:GetPropertyChangedSignal("ViewportSize"):Connect(updateResponsiveLayout)
+end
+workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+    camera = workspace.CurrentCamera
+    updateResponsiveLayout()
+    if camera then
+        camera:GetPropertyChangedSignal("ViewportSize"):Connect(updateResponsiveLayout)
+    end
+end)
 
 local function hideWindow()
     main.Visible = false
