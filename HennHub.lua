@@ -2,7 +2,7 @@
     HennHub
     Compact Custom UI
     Auto Farm + Auto Collect
-    No WindUI
+    Fully custom UI, no external UI library
 ]]
 
 local Players = game:GetService("Players")
@@ -136,28 +136,29 @@ label(
 )
 
 local tab = button(
-    sidebar,"Auto PNB",
+    sidebar,"Auto PnB",
     UDim2.new(1,-10,0,32),
     UDim2.fromOffset(5,33),C.blue
 )
 tab.TextSize = 10
 
+local plantTab = button(sidebar,"Auto Farm",UDim2.new(1,-10,0,32),UDim2.fromOffset(5,70),C.panel2)
+plantTab.TextSize = 10
+
 local dfTab = button(
     sidebar,"Auto DF",
     UDim2.new(1,-10,0,32),
-    UDim2.fromOffset(5,70),C.panel2
+    UDim2.fromOffset(5,107),C.panel2
 )
 dfTab.TextSize = 10
 
 local miscTab = button(
     sidebar,"Misc",
     UDim2.new(1,-10,0,32),
-    UDim2.fromOffset(5,107),C.panel2
+    UDim2.fromOffset(5,144),C.panel2
 )
 miscTab.TextSize = 10
 
-local plantTab = button(sidebar,"Auto Farm",UDim2.new(1,-10,0,32),UDim2.fromOffset(5,144),C.panel2)
-plantTab.TextSize = 10
 local settingTab = button(sidebar,"Setting",UDim2.new(1,-10,0,32),UDim2.fromOffset(5,181),C.panel2)
 settingTab.TextSize = 10
 
@@ -288,6 +289,7 @@ local function section(text)
     box.Size = UDim2.new(1,-2,0,27)
     box.BackgroundTransparency = 1
     box.BorderSizePixel = 0
+    box:SetAttribute("HennHubSection", true)
     box.Parent = page
 
     local heading = label(
@@ -569,14 +571,15 @@ end)
 
 -- AUTO PLANT / HARVEST: controls live in the dedicated Auto Farm tab.
 page = plantPage
-section("AUTO PLANT / HARVEST")
+section("AUTO PLANT")
 local seedInput = makeInput("Auto Plant ID / Seed ID")
-local harvestInput = makeInput("Harvest ID (ID tanaman matang)")
 local plantEnabled, harvestEnabled = false, false
 local setPlantToggle, setHarvestToggle
 setPlantToggle = makeToggle("Enable Auto Plant", function(on)
     plantEnabled = on
 end)
+section("HARVEST")
+local harvestInput = makeInput("Harvest ID (ID tanaman matang)")
 setHarvestToggle = makeToggle("Enable Auto Harvest", function(on)
     harvestEnabled = on
 end)
@@ -588,6 +591,7 @@ local function dfSection(text)
     box.Size = UDim2.new(1,-2,0,27)
     box.BackgroundTransparency = 1
     box.BorderSizePixel = 0
+    box:SetAttribute("HennHubSection", true)
     box.Parent = dfPage
     local heading = label(box,text,UDim2.new(1,-15,1,0),UDim2.fromOffset(9,0),10,C.text)
     heading.Font = Enum.Font.GothamBold
@@ -640,6 +644,7 @@ local function miscSection(text)
     box.Size = UDim2.new(1,-2,0,27)
     box.BackgroundTransparency = 1
     box.BorderSizePixel = 0
+    box:SetAttribute("HennHubSection", true)
     box.Parent = miscPage
     local heading = label(box,text,UDim2.new(1,-15,1,0),UDim2.fromOffset(9,0),10,C.text)
     heading.Font = Enum.Font.GothamBold
@@ -709,6 +714,7 @@ corner(itemIdResult,7)
 -- SETTING: named configs with persistent storage (executor file APIs)
 local function settingSection(text)
     local h = label(settingPage,text,UDim2.new(1,-4,0,25),UDim2.new(),10,C.text)
+    h:SetAttribute("HennHubSection", true)
     h.Font = Enum.Font.GothamBold
     h.TextXAlignment = Enum.TextXAlignment.Center
 end
@@ -858,6 +864,181 @@ task.defer(function()
         end
     end)
 end)
+
+-- HANDMADE GROUPBOX LAYOUT (no external UI library)
+-- Rebuilds each tab into rounded cards and balanced left/right columns.
+local function makeGroupCard(parent, titleText, items, width)
+    local card = Instance.new("Frame")
+    card.Name = "Group_" .. tostring(titleText):gsub("%W+", "")
+    card.Size = width or UDim2.new(1, -6, 0, 0)
+    card.AutomaticSize = Enum.AutomaticSize.Y
+    card.BackgroundColor3 = Color3.fromRGB(30, 34, 43)
+    card.BorderSizePixel = 0
+    card.Parent = parent
+    corner(card, 9)
+    stroke(card, C.border)
+
+    local pad = Instance.new("UIPadding")
+    pad.PaddingTop = UDim.new(0, 8)
+    pad.PaddingBottom = UDim.new(0, 8)
+    pad.PaddingLeft = UDim.new(0, 8)
+    pad.PaddingRight = UDim.new(0, 8)
+    pad.Parent = card
+
+    local cardLayout = Instance.new("UIListLayout")
+    cardLayout.Padding = UDim.new(0, 6)
+    cardLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    cardLayout.Parent = card
+
+    local heading = Instance.new("TextLabel")
+    heading.Name = "GroupTitle"
+    heading.Size = UDim2.new(1, -16, 0, 18)
+    heading.BackgroundTransparency = 1
+    heading.Font = Enum.Font.GothamBold
+    heading.Text = tostring(titleText):upper()
+    heading.TextSize = 10
+    heading.TextColor3 = C.blue
+    heading.TextXAlignment = Enum.TextXAlignment.Left
+    heading.Parent = card
+
+    local body = Instance.new("Frame")
+    body.Name = "GroupContent"
+    body.Size = UDim2.new(1, -16, 0, 0)
+    body.AutomaticSize = Enum.AutomaticSize.Y
+    body.BackgroundTransparency = 1
+    body.Parent = card
+
+    local bodyLayout = Instance.new("UIListLayout")
+    bodyLayout.Padding = UDim.new(0, 5)
+    bodyLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    bodyLayout.Parent = body
+
+    for index, item in ipairs(items) do
+        item.LayoutOrder = index
+        item.Parent = body
+        if item:IsA("GuiObject") then
+            item.Position = UDim2.new(0, 0, 0, 0)
+            item.Size = UDim2.new(1, -2, item.Size.Y.Scale, item.Size.Y.Offset)
+        end
+    end
+    return card
+end
+
+local function rebuildAsGroupboxes(scroll, pageName)
+    local original = scroll:GetChildren()
+    local groups, current = {}, nil
+
+    -- Remove the old single-column list layout before moving controls.
+    for _, child in ipairs(original) do
+        if child:IsA("UIListLayout") then child:Destroy() end
+    end
+
+    for _, child in ipairs(original) do
+        if child.Parent == scroll and child:GetAttribute("HennHubSection") then
+            local titleText = child:IsA("TextLabel") and child.Text or "SECTION"
+            if child:IsA("Frame") then
+                local titleLabel = child:FindFirstChildWhichIsA("TextLabel")
+                if titleLabel then titleText = titleLabel.Text end
+            end
+            current = {title = titleText, items = {}}
+            table.insert(groups, current)
+            child:Destroy()
+        elseif child.Parent == scroll and child:IsA("GuiObject") then
+            if not current then
+                current = {title = "GENERAL", items = {}}
+                table.insert(groups, current)
+            end
+            table.insert(current.items, child)
+        end
+    end
+
+    local rootLayout = Instance.new("UIListLayout")
+    rootLayout.Padding = UDim.new(0, 7)
+    rootLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    rootLayout.Parent = scroll
+
+    local fullWidthGroups = {}
+    local columnGroups = {}
+    for _, group in ipairs(groups) do
+        if #group.items > 0 then
+            if #groups == 1 or group.title:upper() == "STAT" or group.title:upper() == "GRID" then
+                table.insert(fullWidthGroups, group)
+            else
+                table.insert(columnGroups, group)
+            end
+        end
+    end
+
+    local order = 0
+    for _, group in ipairs(fullWidthGroups) do
+        order += 1
+        local card = makeGroupCard(scroll, group.title, group.items)
+        card.LayoutOrder = order
+    end
+
+    if #columnGroups > 0 then
+        local holder = Instance.new("Frame")
+        holder.Name = "GroupboxColumns"
+        holder.Size = UDim2.new(1, -6, 0, 0)
+        holder.BackgroundTransparency = 1
+        holder.BorderSizePixel = 0
+        holder.LayoutOrder = order + 1
+        holder.Parent = scroll
+
+        local left = Instance.new("Frame")
+        left.Name = "LeftColumn"
+        left.Position = UDim2.new(0, 0, 0, 0)
+        left.Size = UDim2.new(0.5, -5, 0, 0)
+        left.AutomaticSize = Enum.AutomaticSize.Y
+        left.BackgroundTransparency = 1
+        left.Parent = holder
+
+        local right = Instance.new("Frame")
+        right.Name = "RightColumn"
+        right.Position = UDim2.new(0.5, 5, 0, 0)
+        right.Size = UDim2.new(0.5, -5, 0, 0)
+        right.AutomaticSize = Enum.AutomaticSize.Y
+        right.BackgroundTransparency = 1
+        right.Parent = holder
+
+        local leftLayout = Instance.new("UIListLayout")
+        leftLayout.Padding = UDim.new(0, 7)
+        leftLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        leftLayout.Parent = left
+        local rightLayout = Instance.new("UIListLayout")
+        rightLayout.Padding = UDim.new(0, 7)
+        rightLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        rightLayout.Parent = right
+
+        for index, group in ipairs(columnGroups) do
+            local target = (index % 2 == 1) and left or right
+            local card = makeGroupCard(target, group.title, group.items, UDim2.new(1, 0, 0, 0))
+            card.LayoutOrder = math.ceil(index / 2)
+        end
+
+        local function updateColumns()
+            local height = math.max(leftLayout.AbsoluteContentSize.Y, rightLayout.AbsoluteContentSize.Y)
+            holder.Size = UDim2.new(1, -6, 0, height)
+            scroll.CanvasSize = UDim2.new(0, 0, 0, rootLayout.AbsoluteContentSize.Y + 10)
+        end
+        leftLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateColumns)
+        rightLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateColumns)
+        holder:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateColumns)
+    end
+
+    rootLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        scroll.CanvasSize = UDim2.new(0, 0, 0, rootLayout.AbsoluteContentSize.Y + 10)
+    end)
+    task.defer(function()
+        scroll.CanvasSize = UDim2.new(0, 0, 0, rootLayout.AbsoluteContentSize.Y + 10)
+    end)
+end
+
+rebuildAsGroupboxes(pnbPage, "Auto PnB")
+rebuildAsGroupboxes(plantPage, "Auto Farm")
+rebuildAsGroupboxes(dfPage, "Auto DF")
+rebuildAsGroupboxes(miscPage, "Misc")
+rebuildAsGroupboxes(settingPage, "Setting")
 
 -- FLOATING BUTTON
 local openButton = button(
