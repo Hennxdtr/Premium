@@ -236,6 +236,8 @@ gradient(content, Color3.fromRGB(30,34,43), Color3.fromRGB(25,28,36), 90)
 local contentStroke = stroke(content, Color3.fromRGB(54,61,74))
 contentStroke.Transparency = 0.45
 
+local openButton -- forward declaration, dipakai oleh updateResponsiveLayout()
+
 -- RESPONSIVE LAYOUT: menyesuaikan panel dan tombol dengan ukuran layar.
 local camera = workspace.CurrentCamera
 local function updateResponsiveLayout()
@@ -904,7 +906,7 @@ loadConfigButton.Activated:Connect(function()
 end)
 
 -- FLOATING BUTTON
-local openButton = button(
+openButton = button(
     gui,"H",
     UDim2.fromOffset(42,42),
     UDim2.new(0,10,.5,-21),
