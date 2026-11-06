@@ -94,6 +94,7 @@ local function stroke(obj,color)
     s.Color = color or C.border
     s.Thickness = 1
     s.Parent = obj
+    return s
 end
 
 local function gradient(obj, topColor, bottomColor, rotation)
