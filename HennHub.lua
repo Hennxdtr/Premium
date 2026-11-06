@@ -11,53 +11,6 @@ local UIS = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
-local HttpService = game:GetService("HttpService")
-local sharedEnv = (type(getgenv) == "function" and getgenv()) or _G
-if sharedEnv.__HennHubRuntime then
-    sharedEnv.__HennHubRuntime.shutdown = true
-end
-local runtime = { shutdown = false }
-sharedEnv.__HennHubRuntime = runtime
-local function runtimeAlive()
-    return not runtime.shutdown and sharedEnv.__HennHubRuntime == runtime
-end
-
-local CONFIG_PATH = "HennHub/config.json"
-local CHECKPOINT_PATH = "HennHub/checkpoint.json"
-local function canUseFiles()
-    return type(readfile) == "function" and type(writefile) == "function"
-        and type(isfile) == "function"
-end
-local function ensureFolder()
-    if type(makefolder) == "function" and type(isfolder) == "function" then
-        if not isfolder("HennHub") then pcall(makefolder, "HennHub") end
-    end
-end
-local function readJson(path)
-    if canUseFiles() then
-        local ok, raw = pcall(function()
-            if not isfile(path) then return nil end
-            return readfile(path)
-        end)
-        if ok and type(raw) == "string" then
-            local decodedOk, data = pcall(HttpService.JSONDecode, HttpService, raw)
-            if decodedOk and type(data) == "table" then return data end
-        end
-    end
-    local memory = sharedEnv.__HennHubData
-    return type(memory) == "table" and memory[path] or nil
-end
-local function writeJson(path, data)
-    sharedEnv.__HennHubData = sharedEnv.__HennHubData or {}
-    sharedEnv.__HennHubData[path] = data
-    if not canUseFiles() then return true end
-    ensureFolder()
-    local ok, raw = pcall(HttpService.JSONEncode, HttpService, data)
-    if not ok then return false end
-    local wrote = pcall(writefile, path, raw)
-    return wrote
-end
-
 local old = playerGui:FindFirstChild("HennHubCustom")
 if old then old:Destroy() end
 
@@ -71,10 +24,7 @@ local C = {
     green = Color3.fromRGB(75,145,112),
     red = Color3.fromRGB(180,75,78),
     blue = Color3.fromRGB(75,115,155),
-    grid = Color3.fromRGB(45,48,58),
-    deep = Color3.fromRGB(19,22,29),
-    steel = Color3.fromRGB(49,58,73),
-    ice = Color3.fromRGB(112,157,196)
+    grid = Color3.fromRGB(45,48,58)
 }
 
 local gui = Instance.new("ScreenGui")
@@ -94,18 +44,6 @@ local function stroke(obj,color)
     s.Color = color or C.border
     s.Thickness = 1
     s.Parent = obj
-    return s
-end
-
-local function gradient(obj, topColor, bottomColor, rotation)
-    local g = Instance.new("UIGradient")
-    g.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, topColor),
-        ColorSequenceKeypoint.new(1, bottomColor)
-    })
-    g.Rotation = rotation or 90
-    g.Parent = obj
-    return g
 end
 
 local function label(parent,text,size,pos,textSize,color)
@@ -135,8 +73,6 @@ local function button(parent,text,size,pos,bg)
     b.Font = Enum.Font.GothamMedium
     b.Parent = parent
     corner(b,7)
-    local edge = stroke(b, Color3.fromRGB(74,85,103))
-    edge.Transparency = 0.62
     return b
 end
 
@@ -145,331 +81,237 @@ local main = Instance.new("Frame")
 main.Name = "Main"
 main.AnchorPoint = Vector2.new(.5,.5)
 main.Position = UDim2.fromScale(.5,.5)
-main.Size = UDim2.fromOffset(720, 480)
+main.Size = UDim2.new(.92,0,.76,0)
 main.BackgroundColor3 = C.bg
 main.BorderSizePixel = 0
 main.Parent = gui
-corner(main,14)
-gradient(main, Color3.fromRGB(34,38,48), C.deep, 90)
-local mainStroke = stroke(main, C.steel)
-mainStroke.Thickness = 1.25
-mainStroke.Transparency = 0.12
+corner(main,12)
+stroke(main,C.border)
 
 local constraint = Instance.new("UISizeConstraint")
-constraint.MinSize = Vector2.new(270,300)
-constraint.MaxSize = Vector2.new(720,480)
+constraint.MinSize = Vector2.new(300,340)
+constraint.MaxSize = Vector2.new(500,440)
 constraint.Parent = main
 
--- HEADER + TOP TAB BAR
+-- HEADER
 local header = Instance.new("Frame")
 header.Size = UDim2.new(1,0,0,42)
 header.BackgroundColor3 = C.panel
 header.BorderSizePixel = 0
 header.Parent = main
-corner(header,14)
-gradient(header, Color3.fromRGB(43,50,63), Color3.fromRGB(28,32,41), 0)
-local headerAccent = Instance.new("Frame")
-headerAccent.Name = "AccentLine"
-headerAccent.Size = UDim2.new(1,-18,0,2)
-headerAccent.Position = UDim2.new(0,9,1,-2)
-headerAccent.BackgroundColor3 = C.ice
-headerAccent.BorderSizePixel = 0
-headerAccent.Parent = header
-gradient(headerAccent, C.blue, C.ice, 0)
-corner(headerAccent,2)
+corner(header,12)
 
--- Title dibuat menjadi tombol toggle panel.
-local titleButton = button(
+local title = label(
     header,"HennHub",
-    UDim2.fromOffset(74,27),
-    UDim2.fromOffset(8,7),C.panel2
+    UDim2.new(0,100,1,0),
+    UDim2.fromOffset(13,0),15,C.text
 )
-titleButton.TextSize = 13
-titleButton.Font = Enum.Font.GothamBold
-titleButton.TextColor3 = C.ice
-titleButton.BackgroundColor3 = Color3.fromRGB(31,39,50)
-local titleStroke = stroke(titleButton, C.steel)
-titleStroke.Transparency = 0.25
+title.Font = Enum.Font.GothamBold
 
--- Tab horizontal di bagian atas, mengikuti gaya UI script referensi.
+-- GROWBLOX TITLE REMOVED
+
+local minimize = button(
+    header,"-",UDim2.fromOffset(26,24),
+    UDim2.new(1,-60,0,9)
+)
+
+local close = button(
+    header,"×",UDim2.fromOffset(26,24),
+    UDim2.new(1,-30,0,9),C.red
+)
+
+-- SINGLE TAB SIDEBAR
+local sidebar = Instance.new("Frame")
+sidebar.Position = UDim2.fromOffset(8,49)
+sidebar.Size = UDim2.new(0,112,1,-57)
+sidebar.BackgroundColor3 = C.panel
+sidebar.BorderSizePixel = 0
+sidebar.Parent = main
+corner(sidebar,9)
+
+label(
+    sidebar,"MENU",
+    UDim2.new(1,-16,0,25),
+    UDim2.fromOffset(9,5),10,C.muted
+)
+
 local tab = button(
-    header,"AUTO PNB",
-    UDim2.fromOffset(72,27),
-    UDim2.fromOffset(86,7),C.blue
+    sidebar,"Auto PNB",
+    UDim2.new(1,-10,0,32),
+    UDim2.fromOffset(5,33),C.blue
 )
 tab.TextSize = 10
 
-local farmTab = button(
-    header,"AUTO FARM",
-    UDim2.fromOffset(68,27),
-    UDim2.fromOffset(162,7),C.panel2
-)
-farmTab.TextSize = 10
-
 local dfTab = button(
-    header,"AUTO DF",
-    UDim2.fromOffset(60,27),
-    UDim2.fromOffset(234,7),C.panel2
+    sidebar,"Auto DF",
+    UDim2.new(1,-10,0,32),
+    UDim2.fromOffset(5,70),C.panel2
 )
 dfTab.TextSize = 10
 
 local miscTab = button(
-    header,"Misc",
-    UDim2.fromOffset(42,27),
-    UDim2.fromOffset(298,7),C.panel2
+    sidebar,"Misc",
+    UDim2.new(1,-10,0,32),
+    UDim2.fromOffset(5,107),C.panel2
 )
 miscTab.TextSize = 10
 
-local close = button(
-    header,"×",UDim2.fromOffset(26,24),
-    UDim2.new(1,-34,0,9),C.red
-)
+local plantTab = button(sidebar,"Auto Farm",UDim2.new(1,-10,0,32),UDim2.fromOffset(5,144),C.panel2)
+plantTab.TextSize = 10
+local settingTab = button(sidebar,"Setting",UDim2.new(1,-10,0,32),UDim2.fromOffset(5,181),C.panel2)
+settingTab.TextSize = 10
 
 -- CONTENT
 local content = Instance.new("Frame")
-content.Position = UDim2.fromOffset(8,49)
-content.Size = UDim2.new(1,-16,1,-57)
+content.Position = UDim2.new(0,128,0,49)
+content.Size = UDim2.new(1,-136,1,-57)
 content.BackgroundColor3 = C.panel
 content.BorderSizePixel = 0
 content.Parent = main
-corner(content,10)
-gradient(content, Color3.fromRGB(30,34,43), Color3.fromRGB(25,28,36), 90)
-local contentStroke = stroke(content, Color3.fromRGB(54,61,74))
-contentStroke.Transparency = 0.45
-
-local openButton -- forward declaration, dipakai oleh updateResponsiveLayout()
-
--- RESPONSIVE LAYOUT: menyesuaikan panel dan tombol dengan ukuran layar.
-local camera = workspace.CurrentCamera
-local function updateResponsiveLayout()
-    camera = workspace.CurrentCamera or camera
-    if not camera then return end
-    local viewport = camera.ViewportSize
-    local panelWidth = math.clamp(math.floor(viewport.X * 0.86), 270, 720)
-    local panelHeight = math.clamp(math.floor(viewport.Y * 0.72), 320, 480)
-    panelWidth = math.min(panelWidth, math.max(270, viewport.X - 16))
-    panelHeight = math.min(panelHeight, math.max(300, viewport.Y - 24))
-    main.Size = UDim2.fromOffset(panelWidth, panelHeight)
-
-    local compactHeader = viewport.X < 520
-    local headerHeight = compactHeader and 72 or 40
-    header.Size = UDim2.new(1,0,0,headerHeight)
-    content.Position = UDim2.fromOffset(6, headerHeight + 5)
-    content.Size = UDim2.new(1,-12,1,-(headerHeight + 11))
-
-    if compactHeader then
-        titleButton.Size = UDim2.fromOffset(82,25)
-        titleButton.Position = UDim2.fromOffset(8,5)
-        close.Size = UDim2.fromOffset(27,23)
-        close.Position = UDim2.new(1,-35,0,6)
-        local gap, left, usable = 4, 8, panelWidth - 16
-        local widths = {
-            math.floor(usable * 0.26),
-            math.floor(usable * 0.28),
-            math.floor(usable * 0.22),
-        }
-        widths[4] = usable - widths[1] - widths[2] - widths[3] - gap * 3
-        local tabs = {tab, farmTab, dfTab, miscTab}
-        for i, item in ipairs(tabs) do
-            item.Size = UDim2.fromOffset(widths[i],27)
-            item.Position = UDim2.fromOffset(left,43)
-            left += widths[i] + gap
-        end
-    else
-        titleButton.Size = UDim2.fromOffset(74,27)
-        titleButton.Position = UDim2.fromOffset(8,7)
-        tab.Size = UDim2.fromOffset(72,27)
-        tab.Position = UDim2.fromOffset(86,7)
-        farmTab.Size = UDim2.fromOffset(68,27)
-        farmTab.Position = UDim2.fromOffset(162,7)
-        dfTab.Size = UDim2.fromOffset(60,27)
-        dfTab.Position = UDim2.fromOffset(234,7)
-        miscTab.Size = UDim2.fromOffset(42,27)
-        miscTab.Position = UDim2.fromOffset(298,7)
-        close.Size = UDim2.fromOffset(26,24)
-        close.Position = UDim2.new(1,-34,0,9)
-    end
-
-    local floatSize = math.clamp(math.floor(math.min(viewport.X, viewport.Y) * 0.105), 38, 46)
-    -- The responsive layout can run before the floating button is created.
-    -- Guard it here, then apply the layout again after the button exists.
-    if openButton then
-        openButton.Size = UDim2.fromOffset(floatSize, floatSize)
-        openButton.Position = UDim2.new(0, 12, 0.5, -floatSize/2)
-    end
-end
+corner(content,9)
 
 local pageTitle = label(
     content,"AUTO PNB",
-    UDim2.new(1,-18,0,18),
-    UDim2.fromOffset(9,1),11,C.text
+    UDim2.new(1,-18,0,29),
+    UDim2.fromOffset(10,5),13,C.text
 )
 pageTitle.Font = Enum.Font.GothamBold
-pageTitle.TextColor3 = C.ice
 
 local page = Instance.new("ScrollingFrame")
-page.Position = UDim2.fromOffset(6,23)
-page.Size = UDim2.new(1,-12,1,-28)
+page.Position = UDim2.fromOffset(7,37)
+page.Size = UDim2.new(1,-14,1,-44)
 page.BackgroundTransparency = 1
 page.BorderSizePixel = 0
-page.ScrollBarThickness = 2
+page.ScrollBarThickness = 3
 page.ScrollBarImageColor3 = C.border
 page.CanvasSize = UDim2.new(0,0,0,0)
-page.Visible = true
 page.Parent = content
+local pnbPage = page
 
--- Create the remaining tab pages before building their two-column layouts.
-local function createTabPage(name)
-    local frame = Instance.new("ScrollingFrame")
-    frame.Name = name
-    frame.Position = UDim2.fromOffset(6,23)
-    frame.Size = UDim2.new(1,-12,1,-28)
-    frame.BackgroundTransparency = 1
-    frame.BorderSizePixel = 0
-    frame.ScrollBarThickness = 2
-    frame.ScrollBarImageColor3 = C.border
-    frame.CanvasSize = UDim2.new(0,0,0,0)
-    frame.Visible = false
-    frame.Parent = content
-    return frame
+local layout = Instance.new("UIListLayout")
+layout.Padding = UDim.new(0,7)
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+layout.Parent = page
+
+layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    page.CanvasSize = UDim2.new(
+        0,0,0,layout.AbsoluteContentSize.Y+8
+    )
+end)
+
+local dfPage = Instance.new("ScrollingFrame")
+dfPage.Position = UDim2.fromOffset(7,37)
+dfPage.Size = UDim2.new(1,-14,1,-44)
+dfPage.BackgroundTransparency = 1
+dfPage.BorderSizePixel = 0
+dfPage.ScrollBarThickness = 3
+dfPage.ScrollBarImageColor3 = C.border
+dfPage.CanvasSize = UDim2.new(0,0,0,0)
+dfPage.Visible = false
+dfPage.Parent = content
+
+local dfLayout = Instance.new("UIListLayout")
+dfLayout.Padding = UDim.new(0,7)
+dfLayout.SortOrder = Enum.SortOrder.LayoutOrder
+dfLayout.Parent = dfPage
+
+dfLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    dfPage.CanvasSize = UDim2.new(0,0,0,dfLayout.AbsoluteContentSize.Y+8)
+end)
+
+local miscPage = Instance.new("ScrollingFrame")
+miscPage.Position = UDim2.fromOffset(7,37)
+miscPage.Size = UDim2.new(1,-14,1,-44)
+miscPage.BackgroundTransparency = 1
+miscPage.BorderSizePixel = 0
+miscPage.ScrollBarThickness = 3
+miscPage.ScrollBarImageColor3 = C.border
+miscPage.CanvasSize = UDim2.new(0,0,0,0)
+miscPage.Visible = false
+miscPage.Parent = content
+
+local miscLayout = Instance.new("UIListLayout")
+miscLayout.Padding = UDim.new(0,7)
+miscLayout.SortOrder = Enum.SortOrder.LayoutOrder
+miscLayout.Parent = miscPage
+miscLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    miscPage.CanvasSize = UDim2.new(0,0,0,miscLayout.AbsoluteContentSize.Y+8)
+end)
+
+local function newScrollPage()
+    local f = Instance.new("ScrollingFrame")
+    f.Position = UDim2.fromOffset(7,37)
+    f.Size = UDim2.new(1,-14,1,-44)
+    f.BackgroundTransparency = 1
+    f.BorderSizePixel = 0
+    f.ScrollBarThickness = 3
+    f.ScrollBarImageColor3 = C.border
+    f.CanvasSize = UDim2.new(0,0,0,0)
+    f.Visible = false
+    f.Parent = content
+    local l = Instance.new("UIListLayout")
+    l.Padding = UDim.new(0,7)
+    l.SortOrder = Enum.SortOrder.LayoutOrder
+    l.Parent = f
+    l:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        f.CanvasSize = UDim2.new(0,0,0,l.AbsoluteContentSize.Y+8)
+    end)
+    return f
 end
-
-local farmPage = createTabPage("AutoFarmPage")
-local dfPage = createTabPage("AutoDFPage")
-local miscPage = createTabPage("MiscPage")
-
-local function setupColumns(scroller)
-    for _, child in ipairs(scroller:GetChildren()) do
-        if child:IsA("UIListLayout") then child:Destroy() end
-    end
-    local columns = {}
-    for _, side in ipairs({"Left", "Right"}) do
-        local column = Instance.new("Frame")
-        column.Name = side .. "Column"
-        column.BackgroundTransparency = 1
-        column.BorderSizePixel = 0
-        column.Size = UDim2.new(0.5,-5,0,0)
-        column.AutomaticSize = Enum.AutomaticSize.Y
-        column.Parent = scroller
-        local list = Instance.new("UIListLayout")
-        list.Padding = UDim.new(0,7)
-        list.SortOrder = Enum.SortOrder.LayoutOrder
-        list.Parent = column
-        columns[side] = column
-    end
-    columns.Left.Position = UDim2.new(0,0,0,0)
-    columns.Right.Position = UDim2.new(0.5,5,0,0)
-    local function updateCanvas()
-        local height = math.max(columns.Left.UIListLayout.AbsoluteContentSize.Y,
-            columns.Right.UIListLayout.AbsoluteContentSize.Y)
-        scroller.CanvasSize = UDim2.new(0,0,0,height+8)
-    end
-    columns.Left.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateCanvas)
-    columns.Right.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateCanvas)
-    return columns
-end
-
-local pageColumns = setupColumns(page)
-local farmColumns = setupColumns(farmPage)
-local dfColumns = setupColumns(dfPage)
-local miscColumns = setupColumns(miscPage)
+local plantPage = newScrollPage()
+local settingPage = newScrollPage()
 
 local function switchPage(which)
-    local isFarm = which == "farm"
-    local isDF = which == "df"
-    local isMisc = which == "misc"
-    page.Visible = not isFarm and not isDF and not isMisc -- AUTO PNB
-    farmPage.Visible = isFarm
-    dfPage.Visible = isDF
-    miscPage.Visible = isMisc
-    pageTitle.Text = isFarm and "AUTO FARM" or (isDF and "AUTO DF" or (isMisc and "MISC" or "AUTO PNB"))
-    tab.BackgroundColor3 = (not isFarm and not isDF and not isMisc) and C.blue or C.panel2
-    farmTab.BackgroundColor3 = isFarm and C.blue or C.panel2
-    dfTab.BackgroundColor3 = isDF and C.blue or C.panel2
-    miscTab.BackgroundColor3 = isMisc and C.blue or C.panel2
+    local pages = {
+        pnb = pnbPage, plant = plantPage, df = dfPage,
+        misc = miscPage, setting = settingPage
+    }
+    for key, frame in pairs(pages) do frame.Visible = key == which end
+    local names = {pnb="AUTO PNB", plant="AUTO FARM", df="AUTO DF", misc="MISC", setting="SETTING"}
+    pageTitle.Text = names[which] or "HENNHUB"
+    tab.BackgroundColor3 = which == "pnb" and C.blue or C.panel2
+    plantTab.BackgroundColor3 = which == "plant" and C.blue or C.panel2
+    dfTab.BackgroundColor3 = which == "df" and C.blue or C.panel2
+    miscTab.BackgroundColor3 = which == "misc" and C.blue or C.panel2
+    settingTab.BackgroundColor3 = which == "setting" and C.blue or C.panel2
 end
 
 tab.Activated:Connect(function() switchPage("pnb") end)
-farmTab.Activated:Connect(function() switchPage("farm") end)
+plantTab.Activated:Connect(function() switchPage("plant") end)
 dfTab.Activated:Connect(function() switchPage("df") end)
 miscTab.Activated:Connect(function() switchPage("misc") end)
+settingTab.Activated:Connect(function() switchPage("setting") end)
 
--- Compact two-column groupboxes, modeled on the reference tab layout.
-local buildPage = page
-local activeColumns = pageColumns
-local activeColumn = pageColumns.Left
-local function createGroup(columns, side, titleText)
-    local column = columns[side or "Left"] or columns.Left
-    local card = Instance.new("Frame")
-    card.Name = (titleText:gsub("%W+", "")) .. "Group"
-    card.Size = UDim2.new(1,0,0,0)
-    card.AutomaticSize = Enum.AutomaticSize.Y
-    card.BackgroundColor3 = Color3.fromRGB(30,34,43)
-    card.BorderSizePixel = 0
-    card.Parent = column
-    corner(card,9)
-    gradient(card, Color3.fromRGB(38,44,55), Color3.fromRGB(27,31,40), 90)
-    local cardStroke = stroke(card, C.steel)
-    cardStroke.Transparency = 0.28
+-- SECTION: CENTERED TITLE, NO GRAY BACKGROUND
+local function section(text)
+    local box = Instance.new("Frame")
+    box.Size = UDim2.new(1,-2,0,27)
+    box.BackgroundTransparency = 1
+    box.BorderSizePixel = 0
+    box.Parent = page
 
-    local cardLayout = Instance.new("UIListLayout")
-    cardLayout.Padding = UDim.new(0,5)
-    cardLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    cardLayout.Parent = card
-
-    local heading = Instance.new("Frame")
-    heading.Size = UDim2.new(1,-8,0,22)
-    heading.Position = UDim2.fromOffset(4,4)
-    heading.BackgroundColor3 = Color3.fromRGB(43,51,64)
-    heading.BorderSizePixel = 0
-    heading.LayoutOrder = 1
-    heading.Parent = card
-    corner(heading,6)
-    gradient(heading, Color3.fromRGB(51,62,79), Color3.fromRGB(35,42,54), 0)
-    local accent = Instance.new("Frame")
-    accent.Size = UDim2.new(0,3,0,12)
-    accent.Position = UDim2.new(0,7,.5,-6)
-    accent.BackgroundColor3 = C.ice
-    accent.BorderSizePixel = 0
-    accent.Parent = heading
-    gradient(accent, C.ice, C.blue, 90)
-    corner(accent,3)
-    local title = label(heading,titleText,UDim2.new(1,-24,1,0),UDim2.fromOffset(16,0),10,C.text)
-    title.Font = Enum.Font.GothamBold
-
-    local inner = Instance.new("Frame")
-    inner.Name = "GroupContent"
-    inner.BackgroundTransparency = 1
-    inner.BorderSizePixel = 0
-    inner.Position = UDim2.fromOffset(4,0)
-    inner.Size = UDim2.new(1,-8,0,0)
-    inner.AutomaticSize = Enum.AutomaticSize.Y
-    inner.LayoutOrder = 2
-    inner.Parent = card
-    local innerLayout = Instance.new("UIListLayout")
-    innerLayout.Padding = UDim.new(0,4)
-    innerLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    innerLayout.Parent = inner
-    return inner
-end
-
-local function section(text, side)
-    buildPage = createGroup(activeColumns,side or "Left",text)
+    local heading = label(
+        box,text,
+        UDim2.new(1,-15,1,0),
+        UDim2.fromOffset(9,0),10,C.text
+    )
+    heading.Font = Enum.Font.GothamBold
+    heading.TextXAlignment = Enum.TextXAlignment.Center
 end
 
 local function makeInput(placeholder)
     local box = Instance.new("TextBox")
-    box.Size = UDim2.new(1,-2,0,30)
+    box.Size = UDim2.new(1,-2,0,34)
     box.BackgroundColor3 = C.panel2
     box.BorderSizePixel = 0
     box.Text = ""
     box.PlaceholderText = placeholder
     box.PlaceholderColor3 = C.muted
     box.TextColor3 = C.text
-    box.TextSize = 11
+    box.TextSize = 12
     box.Font = Enum.Font.Gotham
     box.ClearTextOnFocus = false
-    box.Parent = buildPage
+    box.Parent = page
     corner(box,7)
     stroke(box,C.border)
     return box
@@ -477,10 +319,10 @@ end
 
 local function makeToggle(name, callback)
     local row = Instance.new("Frame")
-    row.Size = UDim2.new(1,-2,0,32)
+    row.Size = UDim2.new(1,-2,0,36)
     row.BackgroundColor3 = C.panel2
     row.BorderSizePixel = 0
-    row.Parent = buildPage
+    row.Parent = page
     corner(row,7)
 
     label(
@@ -492,8 +334,8 @@ local function makeToggle(name, callback)
     local state = false
     local btn = button(
         row,"OFF",
-        UDim2.fromOffset(38,18),
-        UDim2.new(1,-44,.5,-9),C.red
+        UDim2.fromOffset(43,22),
+        UDim2.new(1,-49,.5,-11),C.red
     )
     btn.TextSize = 10
 
@@ -511,13 +353,13 @@ local function makeToggle(name, callback)
 end
 
 -- STAT
-section("STAT","Left")
+section("STAT")
 
 local statusRow = Instance.new("Frame")
-statusRow.Size = UDim2.new(1,-2,0,30)
+statusRow.Size = UDim2.new(1,-2,0,34)
 statusRow.BackgroundColor3 = C.panel2
 statusRow.BorderSizePixel = 0
-statusRow.Parent = buildPage
+statusRow.Parent = page
 corner(statusRow,7)
 
 label(
@@ -534,25 +376,25 @@ local status = label(
 status.TextXAlignment = Enum.TextXAlignment.Right
 
 -- GRID 5x5
-section("GRID","Left")
+section("GRID")
 
 local gridFrame = Instance.new("Frame")
-gridFrame.Size = UDim2.new(1,-2,0,142)
+gridFrame.Size = UDim2.new(1,-2,0,190)
 gridFrame.BackgroundColor3 = C.panel2
 gridFrame.BorderSizePixel = 0
-gridFrame.Parent = buildPage
+gridFrame.Parent = page
 corner(gridFrame,8)
 
 local gridHolder = Instance.new("Frame")
 gridHolder.AnchorPoint = Vector2.new(.5,.5)
 gridHolder.Position = UDim2.fromScale(.5,.5)
-gridHolder.Size = UDim2.new(0,132,0,132)
+gridHolder.Size = UDim2.new(.85,0,.85,0)
 gridHolder.BackgroundTransparency = 1
 gridHolder.Parent = gridFrame
 
 local gridLayout = Instance.new("UIGridLayout")
-gridLayout.CellSize = UDim2.fromOffset(22,22)
-gridLayout.CellPadding = UDim2.fromOffset(3,3)
+gridLayout.CellSize = UDim2.new(.18,0,.18,0)
+gridLayout.CellPadding = UDim2.new(.02,0,.02,0)
 gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 gridLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 gridLayout.Parent = gridHolder
@@ -594,17 +436,17 @@ for row = -2,2 do
 end
 
 -- BLOCK ID
-section("BLOCK ID","Left")
+section("BLOCK ID")
 local blockInput = makeInput("Enter Block ID")
 
 -- ATTACK SPEED
-section("ATTACK SPEED","Right")
+section("ATTACK SPEED")
 
 local speedRow = Instance.new("Frame")
-speedRow.Size = UDim2.new(1,-2,0,29)
+speedRow.Size = UDim2.new(1,-2,0,45)
 speedRow.BackgroundColor3 = C.panel2
 speedRow.BorderSizePixel = 0
-speedRow.Parent = buildPage
+speedRow.Parent = page
 corner(speedRow,7)
 
 local speed = 0.22
@@ -623,8 +465,8 @@ local speedText = label(
 speedText.TextXAlignment = Enum.TextXAlignment.Right
 
 local slider = Instance.new("TextButton")
-slider.Size = UDim2.new(1,-18,0,6)
-slider.Position = UDim2.fromOffset(9,22)
+slider.Size = UDim2.new(1,-18,0,7)
+slider.Position = UDim2.fromOffset(9,29)
 slider.BackgroundColor3 = C.border
 slider.Text = ""
 slider.Parent = speedRow
@@ -678,17 +520,17 @@ UIS.InputEnded:Connect(function(input)
 end)
 
 -- AUTO FARM
-section("AUTO FARM","Right")
+section("AUTO PNB")
 
 local farmEnabled = false
 local collectEnabled = false
 local setCollectToggle
 
 local farmRow = Instance.new("Frame")
-farmRow.Size = UDim2.new(1,-2,0,31)
+farmRow.Size = UDim2.new(1,-2,0,36)
 farmRow.BackgroundColor3 = C.panel2
 farmRow.BorderSizePixel = 0
-farmRow.Parent = buildPage
+farmRow.Parent = page
 corner(farmRow,7)
 
 label(
@@ -699,24 +541,23 @@ label(
 
 local farmButton = button(
     farmRow,"OFF",
-    UDim2.fromOffset(38,18),
-    UDim2.new(1,-44,.5,-9),C.red
+    UDim2.fromOffset(43,22),
+    UDim2.new(1,-49,.5,-11),C.red
 )
 farmButton.TextSize = 10
 
-farmButton.Activated:Connect(function()
-    farmEnabled = not farmEnabled
+local function setFarmEnabled(on)
+    farmEnabled = on and true or false
     farmButton.Text = farmEnabled and "ON" or "OFF"
     farmButton.BackgroundColor3 = farmEnabled and C.green or C.red
     status.Text = farmEnabled and "ON" or "IDLE"
     status.TextColor3 = farmEnabled and C.green or C.red
-    if not farmEnabled then
-        setCollectToggle(false)
-    end
-end)
+    if not farmEnabled and setCollectToggle then setCollectToggle(false) end
+end
+farmButton.Activated:Connect(function() setFarmEnabled(not farmEnabled) end)
 
 -- AUTO COLLECT
-section("AUTO COLLECT","Right")
+section("AUTO COLLECT")
 setCollectToggle = makeToggle("Enable Auto Collect", function(on)
     if on and not farmEnabled then
         collectEnabled = false
@@ -726,35 +567,39 @@ setCollectToggle = makeToggle("Enable Auto Collect", function(on)
     end
 end)
 
--- AUTO PLANT / HARVEST ditempatkan di tab AUTO FARM.
-activeColumns = farmColumns
-buildPage = farmPage
-section("SEED / HARVEST ID","Left")
-local seedInput = makeInput("Seed ID")
+-- AUTO PLANT / HARVEST: controls live in the dedicated Auto Farm tab.
+page = plantPage
+section("AUTO PLANT / HARVEST")
+local seedInput = makeInput("Auto Plant ID / Seed ID")
 local harvestInput = makeInput("Harvest ID (ID tanaman matang)")
 local plantEnabled, harvestEnabled = false, false
 local setPlantToggle, setHarvestToggle
-section("AUTOMATION","Right")
 setPlantToggle = makeToggle("Enable Auto Plant", function(on)
     plantEnabled = on
 end)
 setHarvestToggle = makeToggle("Enable Auto Harvest", function(on)
     harvestEnabled = on
 end)
+page = pnbPage
 
 -- AUTO DF UI (separate tab)
-activeColumns = dfColumns
-local dfBuildPage = dfPage
-local function dfSection(text,side)
-    dfBuildPage = createGroup(dfColumns,side or "Left",text)
+local function dfSection(text)
+    local box = Instance.new("Frame")
+    box.Size = UDim2.new(1,-2,0,27)
+    box.BackgroundTransparency = 1
+    box.BorderSizePixel = 0
+    box.Parent = dfPage
+    local heading = label(box,text,UDim2.new(1,-15,1,0),UDim2.fromOffset(9,0),10,C.text)
+    heading.Font = Enum.Font.GothamBold
+    heading.TextXAlignment = Enum.TextXAlignment.Center
 end
 
 local function dfInfoRow(titleText)
     local row = Instance.new("Frame")
-    row.Size = UDim2.new(1,-2,0,27)
+    row.Size = UDim2.new(1,-2,0,38)
     row.BackgroundColor3 = C.panel2
     row.BorderSizePixel = 0
-    row.Parent = dfBuildPage
+    row.Parent = dfPage
     corner(row,7)
     label(row,titleText,UDim2.new(.5,0,1,0),UDim2.fromOffset(9,0),11,C.muted)
     local value = label(row,"--",UDim2.new(.5,-12,1,0),UDim2.new(.5,0,0,0),12,C.text)
@@ -763,10 +608,10 @@ local function dfInfoRow(titleText)
     return value
 end
 
-dfSection("CHARACTER POSITION","Left")
+dfSection("CHARACTER POSITION")
 local dfXValue = dfInfoRow("POSITION X")
 local dfYValue = dfInfoRow("POSITION Y")
-dfSection("DIRT FARM","Right")
+dfSection("DIRT FARM")
 local dfDescription = Instance.new("TextLabel")
 dfDescription.Size = UDim2.new(1,-2,0,54)
 dfDescription.BackgroundColor3 = C.panel2
@@ -776,13 +621,13 @@ dfDescription.TextSize = 10
 dfDescription.TextColor3 = C.muted
 dfDescription.TextWrapped = true
 dfDescription.Text = "Area X: 1-98 | Lane Y: 38, 40, 42... sampai bawah. Arah lane bergantian kanan-kiri."
-dfDescription.Parent = dfBuildPage
+dfDescription.Parent = dfPage
 corner(dfDescription,7)
 local dfStatus = dfInfoRow("DF STATUS")
 local dfEnabled = false
-local dfButton = button(dfBuildPage,"START AUTO DF",UDim2.new(1,-2,0,30),UDim2.new(),C.green)
+local dfButton = button(dfPage,"START AUTO DF",UDim2.new(1,-2,0,36),UDim2.new(),C.green)
 dfButton.TextSize = 11
-local dfStopHint = label(dfBuildPage,"Matikan tombol untuk menghentikan proses.",UDim2.new(1,-4,0,22),UDim2.new(),10,C.muted)
+local dfStopHint = label(dfPage,"Matikan tombol untuk menghentikan proses.",UDim2.new(1,-4,0,22),UDim2.new(),10,C.muted)
 dfStopHint.TextXAlignment = Enum.TextXAlignment.Center
 
 -- MISC: Anti Lava, GrowScan toggle + item ID lookup
@@ -790,16 +635,21 @@ dfStopHint.TextXAlignment = Enum.TextXAlignment.Center
 local antiLavaOn = false
 local startAntiLava, stopAntiLava
 
-activeColumns = miscColumns
-local miscBuildPage = miscPage
-local function miscSection(text,side)
-    miscBuildPage = createGroup(miscColumns,side or "Left",text)
+local function miscSection(text)
+    local box = Instance.new("Frame")
+    box.Size = UDim2.new(1,-2,0,27)
+    box.BackgroundTransparency = 1
+    box.BorderSizePixel = 0
+    box.Parent = miscPage
+    local heading = label(box,text,UDim2.new(1,-15,1,0),UDim2.fromOffset(9,0),10,C.text)
+    heading.Font = Enum.Font.GothamBold
+    heading.TextXAlignment = Enum.TextXAlignment.Center
 end
 
-miscSection("ANTI LAVA","Left")
-local antiLavaButton = button(miscBuildPage,"ANTI LAVA: OFF",UDim2.new(1,-2,0,30),UDim2.new(),C.green)
+miscSection("ANTI LAVA")
+local antiLavaButton = button(miscPage,"ANTI LAVA: OFF",UDim2.new(1,-2,0,36),UDim2.new(),C.green)
 antiLavaButton.TextSize = 11
-local antiLavaHint = label(miscBuildPage,"Mencegah efek hazard seperti lava, spike, dan api.",UDim2.new(1,-4,0,27),UDim2.new(),10,C.muted)
+local antiLavaHint = label(miscPage,"Mencegah efek hazard seperti lava, spike, dan api.",UDim2.new(1,-4,0,27),UDim2.new(),10,C.muted)
 antiLavaHint.TextXAlignment = Enum.TextXAlignment.Center
 
 local function refreshAntiLavaButton()
@@ -822,14 +672,14 @@ antiLavaButton.Activated:Connect(function()
     refreshAntiLavaButton()
 end)
 
-miscSection("GROWSCAN","Left")
-local growScanButton = button(miscBuildPage,"OPEN GROWSCAN",UDim2.new(1,-2,0,30),UDim2.new(),C.green)
+miscSection("GROWSCAN")
+local growScanButton = button(miscPage,"OPEN GROWSCAN",UDim2.new(1,-2,0,36),UDim2.new(),C.green)
 growScanButton.TextSize = 11
-local growScanHint = label(miscBuildPage,"Buka atau tutup UI GrowScan bawaan game.",UDim2.new(1,-4,0,24),UDim2.new(),10,C.muted)
+local growScanHint = label(miscPage,"Buka atau tutup UI GrowScan bawaan game.",UDim2.new(1,-4,0,24),UDim2.new(),10,C.muted)
 growScanHint.TextXAlignment = Enum.TextXAlignment.Center
-miscSection("CHECK ITEM ID","Right")
+miscSection("CHECK ITEM ID")
 local miscItemInput = Instance.new("TextBox")
-miscItemInput.Size = UDim2.new(1,-2,0,28)
+miscItemInput.Size = UDim2.new(1,-2,0,34)
 miscItemInput.BackgroundColor3 = C.panel2
 miscItemInput.BorderSizePixel = 0
 miscItemInput.Text = ""
@@ -839,13 +689,13 @@ miscItemInput.TextColor3 = C.text
 miscItemInput.TextSize = 11
 miscItemInput.Font = Enum.Font.Gotham
 miscItemInput.ClearTextOnFocus = false
-miscItemInput.Parent = miscBuildPage
+miscItemInput.Parent = miscPage
 corner(miscItemInput,7)
 stroke(miscItemInput,C.border)
-local checkIdButton = button(miscBuildPage,"CHECK ITEM ID",UDim2.new(1,-2,0,29),UDim2.new(),C.blue)
+local checkIdButton = button(miscPage,"CHECK ITEM ID",UDim2.new(1,-2,0,34),UDim2.new(),C.blue)
 checkIdButton.TextSize = 11
 local itemIdResult = Instance.new("TextLabel")
-itemIdResult.Size = UDim2.new(1,-2,0,38)
+itemIdResult.Size = UDim2.new(1,-2,0,48)
 itemIdResult.BackgroundColor3 = C.panel2
 itemIdResult.BorderSizePixel = 0
 itemIdResult.Font = Enum.Font.Gotham
@@ -853,90 +703,176 @@ itemIdResult.Text = "Hasil ID akan muncul di sini."
 itemIdResult.TextColor3 = C.muted
 itemIdResult.TextSize = 11
 itemIdResult.TextWrapped = true
-itemIdResult.Parent = miscBuildPage
+itemIdResult.Parent = miscPage
 corner(itemIdResult,7)
 
-miscSection("SAVE / LOAD","Right")
-local saveConfigButton = button(miscBuildPage,"SAVE CONFIG",UDim2.new(1,-2,0,29),UDim2.new(),C.blue)
-saveConfigButton.TextSize = 11
-local loadConfigButton = button(miscBuildPage,"LOAD CONFIG",UDim2.new(1,-2,0,29),UDim2.new(),C.blue)
-loadConfigButton.TextSize = 11
-local persistenceHint = label(miscBuildPage,"Config tersimpan lokal jika executor mendukung file API.",UDim2.new(1,-4,0,30),UDim2.new(),10,C.muted)
-persistenceHint.TextXAlignment = Enum.TextXAlignment.Center
-
-local function saveCurrentConfig()
-    local config = {
-        version = 1,
-        blockId = blockInput.Text,
-        seedId = seedInput.Text,
-        harvestId = harvestInput.Text,
-        speed = speed,
-        selectedCells = selectedCells,
-    }
-    return writeJson(CONFIG_PATH, config)
+-- SETTING: named configs with persistent storage (executor file APIs)
+local function settingSection(text)
+    local h = label(settingPage,text,UDim2.new(1,-4,0,25),UDim2.new(),10,C.text)
+    h.Font = Enum.Font.GothamBold
+    h.TextXAlignment = Enum.TextXAlignment.Center
 end
-
-local function loadCurrentConfig()
-    local config = readJson(CONFIG_PATH)
-    if not config or config.version ~= 1 then return false end
-    blockInput.Text = tostring(config.blockId or "")
-    seedInput.Text = tostring(config.seedId or "")
-    harvestInput.Text = tostring(config.harvestId or "")
-    if type(config.speed) == "number" then
-        speed = math.clamp(config.speed, 0.05, 1)
-        speedText.Text = string.format("%.2fs", speed)
-        local fraction = math.clamp((speed - 0.05) / 0.95, 0, 1)
-        fill.Size = UDim2.new(fraction, 0, 1, 0)
+local function settingInput(placeholder)
+    local box = Instance.new("TextBox")
+    box.Size = UDim2.new(1,-2,0,34)
+    box.BackgroundColor3 = C.panel2
+    box.BorderSizePixel = 0
+    box.Text = ""
+    box.PlaceholderText = placeholder
+    box.PlaceholderColor3 = C.muted
+    box.TextColor3 = C.text
+    box.TextSize = 11
+    box.Font = Enum.Font.Gotham
+    box.ClearTextOnFocus = false
+    box.Parent = settingPage
+    corner(box,7); stroke(box,C.border)
+    return box
+end
+settingSection("CONFIGURATION MANAGER")
+local configNameInput = settingInput("Nama config, contoh: Farm-01")
+local configLoadInput = settingInput("Nama config yang ingin di-load")
+local configStatus = label(settingPage,"Config belum disimpan.",UDim2.new(1,-4,0,32),UDim2.new(),10,C.muted)
+configStatus.TextWrapped = true
+local saveConfigButton = button(settingPage,"SAVE CONFIG",UDim2.new(1,-2,0,34),UDim2.new(),C.blue)
+local loadConfigButton = button(settingPage,"LOAD CONFIG",UDim2.new(1,-2,0,34),UDim2.new(),C.green)
+local autoLoadButton = button(settingPage,"AUTO LOAD: OFF",UDim2.new(1,-2,0,34),UDim2.new(),C.red)
+local autoLoadEnabled = false
+local CONFIG_DIR = "HennHub/Configs"
+local AUTO_FILE = "HennHub/auto-load.json"
+local HttpService = game:GetService("HttpService")
+local function storageReady()
+    return type(makefolder)=="function" and type(writefile)=="function"
+        and type(readfile)=="function" and type(isfile)=="function"
+end
+local function ensureConfigFolder()
+    if type(isfolder)=="function" then
+        if not isfolder("HennHub") then pcall(makefolder,"HennHub") end
+        if not isfolder(CONFIG_DIR) then pcall(makefolder,CONFIG_DIR) end
+    else
+        pcall(makefolder,"HennHub")
+        pcall(makefolder,CONFIG_DIR)
     end
-    if type(config.selectedCells) == "table" then
-        for key, value in pairs(config.selectedCells) do
-            if selectedCells[key] ~= nil then
-                selectedCells[key] = value == true
-                local row, col = key:match("^(-?%d+),(-?%d+)$")
-                local cell = row and gridHolder:FindFirstChild("Cell_"..row.."_"..col)
-                if cell then cell.BackgroundColor3 = selectedCells[key] and C.green or C.grid end
-            end
+end
+local function cleanConfigName(name)
+    name = tostring(name or ""):gsub("[^%w%-%_ ]", ""):gsub("^%s+", ""):gsub("%s+$", "")
+    return name:sub(1,32)
+end
+local function configPath(name) return CONFIG_DIR.."/"..name..".json" end
+local function captureConfig()
+    local grid = {}
+    for key, enabled in pairs(selectedCells) do if enabled then grid[#grid+1] = key end end
+    return {
+        blockId=blockInput.Text, seedId=seedInput.Text, harvestId=harvestInput.Text,
+        speed=speed, selectedCells=grid,
+        farmEnabled=farmEnabled, collectEnabled=collectEnabled,
+        plantEnabled=plantEnabled, harvestEnabled=harvestEnabled
+    }
+end
+local function applyConfig(data)
+    if type(data)~="table" then return false,"Format config tidak valid" end
+    blockInput.Text = tostring(data.blockId or "")
+    seedInput.Text = tostring(data.seedId or "")
+    harvestInput.Text = tostring(data.harvestId or "")
+    if type(data.speed)=="number" then
+        speed = math.clamp(data.speed,0.05,1)
+        speedText.Text = string.format("%.2fs",speed)
+        local ratio = math.clamp((speed-0.05)/0.95,0,1)
+        fill.Size = UDim2.new(ratio,0,1,0)
+    end
+    for key in pairs(selectedCells) do selectedCells[key] = false end
+    for _, key in ipairs(type(data.selectedCells)=="table" and data.selectedCells or {}) do
+        if selectedCells[key] ~= nil then selectedCells[key] = true end
+    end
+    for _, cell in ipairs(gridHolder:GetChildren()) do
+        if cell:IsA("TextButton") and cell.Name:match("^Cell_") then
+            local row,col = cell.Name:match("Cell_([^_]+)_([^_]+)")
+            local key = tostring(row)..","..tostring(col)
+            if selectedCells[key] ~= nil then cell.BackgroundColor3 = selectedCells[key] and C.green or C.grid end
         end
     end
+    if setFarmEnabled then setFarmEnabled(data.farmEnabled == true) end
+    if setCollectToggle then setCollectToggle(data.collectEnabled == true) end
+    if setPlantToggle then setPlantToggle(data.plantEnabled == true) end
+    if setHarvestToggle then setHarvestToggle(data.harvestEnabled == true) end
     return true
 end
-
+local function loadNamedConfig(name)
+    if not storageReady() then return false,"Executor tidak menyediakan file API" end
+    name = cleanConfigName(name)
+    if name == "" then return false,"Masukkan nama config" end
+    local path = configPath(name)
+    if not isfile(path) then return false,"Config tidak ditemukan: "..name end
+    local ok, data = pcall(function() return HttpService:JSONDecode(readfile(path)) end)
+    if not ok then return false,"File config rusak" end
+    local applied, reason = applyConfig(data)
+    if applied then configLoadInput.Text = name end
+    return applied, reason
+end
 saveConfigButton.Activated:Connect(function()
-    local ok = saveCurrentConfig()
-    persistenceHint.Text = ok and "CONFIG SAVED" or "File API tidak tersedia."
+    if not storageReady() then configStatus.Text = "Executor tidak mendukung writefile/readfile/makefolder." return end
+    local name = cleanConfigName(configNameInput.Text)
+    if name == "" then configStatus.Text = "Isi nama config terlebih dahulu." return end
+    local ok, err = pcall(function()
+        ensureConfigFolder()
+        writefile(configPath(name),HttpService:JSONEncode(captureConfig()))
+    end)
+    configStatus.Text = ok and ("Tersimpan: "..name) or ("Gagal save: "..tostring(err))
+    if ok then configLoadInput.Text = name end
 end)
 loadConfigButton.Activated:Connect(function()
-    local ok = loadCurrentConfig()
-    persistenceHint.Text = ok and "CONFIG LOADED" or "Config tidak ditemukan / file API tidak tersedia."
+    local ok, reason = loadNamedConfig(configLoadInput.Text)
+    configStatus.Text = ok and ("Berhasil load: "..cleanConfigName(configLoadInput.Text)) or tostring(reason)
+end)
+autoLoadButton.Activated:Connect(function()
+    if not storageReady() then configStatus.Text = "Executor tidak mendukung penyimpanan file." return end
+    autoLoadEnabled = not autoLoadEnabled
+    autoLoadButton.Text = autoLoadEnabled and "AUTO LOAD: ON" or "AUTO LOAD: OFF"
+    autoLoadButton.BackgroundColor3 = autoLoadEnabled and C.green or C.red
+    pcall(function()
+        ensureConfigFolder()
+        if autoLoadEnabled then
+            local name = cleanConfigName(configLoadInput.Text ~= "" and configLoadInput.Text or configNameInput.Text)
+            if name == "" then error("Pilih nama config untuk Auto Load") end
+            writefile(AUTO_FILE,HttpService:JSONEncode({name=name,enabled=true}))
+            configStatus.Text = "Auto Load aktif untuk: "..name
+        else
+            writefile(AUTO_FILE,HttpService:JSONEncode({enabled=false}))
+            configStatus.Text = "Auto Load dimatikan."
+        end
+    end)
+end)
+-- Restore selected config on each script execution. The executor must still auto-execute this script.
+task.defer(function()
+    if not storageReady() then return end
+    pcall(function()
+        ensureConfigFolder()
+        if isfile(AUTO_FILE) then
+            local state = HttpService:JSONDecode(readfile(AUTO_FILE))
+            if type(state)=="table" and state.enabled and state.name then
+                autoLoadEnabled = true
+                autoLoadButton.Text = "AUTO LOAD: ON"
+                autoLoadButton.BackgroundColor3 = C.green
+                local ok, reason = loadNamedConfig(state.name)
+                configStatus.Text = ok and ("Auto-loaded: "..state.name) or tostring(reason)
+            end
+        end
+    end)
 end)
 
 -- FLOATING BUTTON
-openButton = button(
+local openButton = button(
     gui,"H",
-    UDim2.fromOffset(42,42),
-    UDim2.new(0,10,.5,-21),
+    UDim2.fromOffset(43,43),
+    UDim2.new(0,14,.5,-20),
     C.panel
 )
 
 openButton.Visible = false
 openButton.TextColor3 = C.green
-openButton.TextSize = 18
+openButton.TextSize = 20
 openButton.Font = Enum.Font.GothamBold
 corner(openButton,50)
 stroke(openButton,C.green)
-
--- Reapply responsive sizing now that the floating button exists.
-updateResponsiveLayout()
-if camera then
-    camera:GetPropertyChangedSignal("ViewportSize"):Connect(updateResponsiveLayout)
-end
-workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
-    camera = workspace.CurrentCamera
-    updateResponsiveLayout()
-    if camera then
-        camera:GetPropertyChangedSignal("ViewportSize"):Connect(updateResponsiveLayout)
-    end
-end)
 
 local function hideWindow()
     main.Visible = false
@@ -948,7 +884,7 @@ local function showWindow()
     openButton.Visible = false
 end
 
-titleButton.Activated:Connect(hideWindow)
+minimize.Activated:Connect(hideWindow)
 close.Activated:Connect(hideWindow)
 
 -- DRAG HELPER
@@ -1726,21 +1662,13 @@ local function runAutoDF(token)
     local minX, maxX = 1, math.min(98, world.w - 2)
     local leftEdgeX, rightEdgeX = 0, math.min(99, world.w - 1)
     local startY = math.max(0, math.floor(currentY))
-    local savedDF = readJson(CHECKPOINT_PATH)
-    local dfResume = savedDF and savedDF.kind == "autodf"
-        and savedDF.world == worldName()
-        and savedDF.worldW == world.w and savedDF.worldH == world.h
-        and type(savedDF.nextY) == "number"
-        and savedDF.nextY >= 0 and savedDF.nextY < world.h
-        and type(savedDF.nextFromRight) == "boolean"
-    if dfResume then startY = math.floor(savedDF.nextY) end
     if maxX < minX or startY >= world.h then
         dfStatus.Text = "AREA INVALID"
         return
     end
 
     local function cancelled()
-        return token ~= dfToken or not dfEnabled or not runtimeAlive()
+        return token ~= dfToken or not dfEnabled
     end
 
     local function isLaneTarget(x, y)
@@ -1870,73 +1798,51 @@ local function runAutoDF(token)
         return breakBatch(cells)
     end
 
-    local nextFromRight
-    if dfResume then
-        nextFromRight = savedDF.nextFromRight
-    else
-        nextFromRight = (currentX - minX) >= (maxX - currentX)
-    end
-    -- Satu checkpoint disimpan per lane yang sudah selesai.
+    local nextFromRight = (currentX - minX) >= (maxX - currentX)
+    -- Tandai setiap lane yang sudah dilewati agar tidak pernah diproses ulang.
+    -- Start berada di Y karakter; buka pojok 5 tile lebih dulu, lalu buka
+    -- tile masuk pada Y+2 sebelum karakter turun dan mulai farming lane itu.
     local completedLanes = {}
 
-    local firstFarmY
     local initialFromRight = nextFromRight
     local initialStandX = initialFromRight and maxX or minX
-    if dfResume then
-        dfStatus.Text = string.format("RESUME AUTO DF Y=%d", startY)
-        local ix, iy = getTile()
-        if not ix or ix ~= initialStandX or iy ~= startY then
-            local moved = Nav.Walk(initialStandX, startY, cancelled)
-            if not moved and not cancelled() then
-                task.wait(DF_TP_COOLDOWN)
-                local ok, result = pcall(world.goTo, initialStandX, startY)
-                if not ok or result == false then
-                    dfStatus.Text = "RESUME POSITION FAILED"
-                    return
-                end
-                task.wait(DF_TP_COOLDOWN)
-            end
-        end
-        firstFarmY = startY
-    else
-        local initialEdgeX = initialFromRight and rightEdgeX or leftEdgeX
-        dfStatus.Text = string.format("MOVE TO CORNER X=%d Y=%d", initialStandX, startY)
-        local ix, iy = getTile()
-        if not ix or ix ~= initialStandX or iy ~= startY then
-            local moved = Nav.Walk(initialStandX, startY, cancelled)
-            if not moved and not cancelled() then
-                task.wait(DF_TP_COOLDOWN)
-                local ok, result = pcall(world.goTo, initialStandX, startY)
-                if not ok or result == false then
-                    dfStatus.Text = "MOVE TO INITIAL CORNER FAILED"
-                    return
-                end
-                task.wait(DF_TP_COOLDOWN)
-            end
-        end
-        if cancelled() then return end
-
-        local initialCornerY = math.max(0, startY - 2)
-        dfStatus.Text = string.format("CHECK CORNER X=%d Y=%d..%d", initialEdgeX, initialCornerY, math.min(world.h - 1, startY + 2))
-        if not clearEdge(initialEdgeX, initialCornerY, 5) then return end
-
-        firstFarmY = startY + 2
-        dfStatus.Text = string.format("CLEAR ENTRY X=%d Y=%d", initialStandX, firstFarmY)
-        breakTargetAt(initialStandX, firstFarmY)
-        if cancelled() then return end
-        dfStatus.Text = string.format("MOVE DOWN X=%d Y=%d", initialStandX, firstFarmY)
-        local downOk = Nav.Walk(initialStandX, firstFarmY, cancelled)
-        if not downOk and not cancelled() then
+    local initialEdgeX = initialFromRight and rightEdgeX or leftEdgeX
+    dfStatus.Text = string.format("MOVE TO CORNER X=%d Y=%d", initialStandX, startY)
+    local ix, iy = getTile()
+    if not ix or ix ~= initialStandX or iy ~= startY then
+        local moved = Nav.Walk(initialStandX, startY, cancelled)
+        if not moved and not cancelled() then
             task.wait(DF_TP_COOLDOWN)
-            local ok, result = pcall(world.goTo, initialStandX, firstFarmY)
+            local ok, result = pcall(world.goTo, initialStandX, startY)
             if not ok or result == false then
-                dfStatus.Text = "MOVE DOWN TO FIRST LANE FAILED"
+                dfStatus.Text = "MOVE TO INITIAL CORNER FAILED"
                 return
             end
             task.wait(DF_TP_COOLDOWN)
         end
-        if cancelled() then return end
     end
+    if cancelled() then return end
+
+    local initialCornerY = math.max(0, startY - 2)
+    dfStatus.Text = string.format("CHECK CORNER X=%d Y=%d..%d", initialEdgeX, initialCornerY, math.min(world.h - 1, startY + 2))
+    if not clearEdge(initialEdgeX, initialCornerY, 5) then return end
+
+    local firstFarmY = startY + 2
+    dfStatus.Text = string.format("CLEAR ENTRY X=%d Y=%d", initialStandX, firstFarmY)
+    breakTargetAt(initialStandX, firstFarmY)
+    if cancelled() then return end
+    dfStatus.Text = string.format("MOVE DOWN X=%d Y=%d", initialStandX, firstFarmY)
+    local downOk = Nav.Walk(initialStandX, firstFarmY, cancelled)
+    if not downOk and not cancelled() then
+        task.wait(DF_TP_COOLDOWN)
+        local ok, result = pcall(world.goTo, initialStandX, firstFarmY)
+        if not ok or result == false then
+            dfStatus.Text = "MOVE DOWN TO FIRST LANE FAILED"
+            return
+        end
+        task.wait(DF_TP_COOLDOWN)
+    end
+    if cancelled() then return end
 
     for y = firstFarmY, world.h - 1, 2 do
         if cancelled() then break end
@@ -1948,11 +1854,6 @@ local function runAutoDF(token)
         if not hasTargetOnLane(y) then
             completedLanes[y] = true
             dfStatus.Text = string.format("SKIP Y=%d (ALREADY CLEAR)", y)
-            writeJson(CHECKPOINT_PATH, {
-                version = 1, kind = "autodf", world = worldName(),
-                worldW = world.w, worldH = world.h, nextY = y + 2,
-                nextFromRight = nextFromRight, savedAt = os.time(),
-            })
             task.wait(0.04)
             continue
         end
@@ -2043,11 +1944,6 @@ local function runAutoDF(token)
         -- di pojok saat membuka jalur untuk lane berikutnya.
         completedLanes[y] = true
         nextFromRight = not nextFromRight
-        writeJson(CHECKPOINT_PATH, {
-            version = 1, kind = "autodf", world = worldName(),
-            worldW = world.w, worldH = world.h, nextY = y + 2,
-            nextFromRight = nextFromRight, savedAt = os.time(),
-        })
         task.wait(0.05)
     end
 
@@ -2056,9 +1952,6 @@ local function runAutoDF(token)
         dfButton.Text = "START AUTO DF"
         dfButton.BackgroundColor3 = C.green
         dfStatus.Text = cancelled() and "STOPPED" or "COMPLETE"
-        if not cancelled() then
-            writeJson(CHECKPOINT_PATH, { version = 1, kind = "complete", world = worldName(), savedAt = os.time() })
-        end
     end
 end
 
@@ -2129,7 +2022,7 @@ end
 
 local function plantHarvestLoop(token, anchor)
     local function cancel()
-        return plantHarvestToken ~= token or (not plantEnabled and not harvestEnabled) or not runtimeAlive()
+        return plantHarvestToken ~= token or (not plantEnabled and not harvestEnabled)
     end
     while not cancel() do
         local world = getWorld()
@@ -2218,7 +2111,7 @@ end
 
 task.spawn(function()
     local wasEnabled = false
-    while runtimeAlive() do
+    while true do
         local enabled = plantEnabled or harvestEnabled
         if enabled and not wasEnabled then
             startPlantHarvest()
@@ -2232,7 +2125,7 @@ end)
 
 -- return: alasan berhenti (string) atau nil kalau dihentikan manual
 local function farmLoop(token, anchor, id)
-    local function cancel() return farmToken ~= token or not runtimeAlive() end
+    local function cancel() return farmToken ~= token end
     while not cancel() do
         local world = getWorld()
         if not world then return "NO WORLD" end
@@ -2330,25 +2223,6 @@ local function startFarm()
         facing = facing,
         world = worldName(),
     }
-    local saved = readJson(CHECKPOINT_PATH)
-    if saved and saved.kind == "autofarm" and saved.world == worldName()
-        and tonumber(saved.blockId) == id
-        and type(saved.anchor) == "table"
-        and type(saved.anchor.x) == "number" and type(saved.anchor.y) == "number"
-        and type(saved.anchor.facing) == "number"
-        and getWorld() and inBounds(getWorld(), saved.anchor.x, saved.anchor.y) then
-        anchor = {
-            x = math.floor(saved.anchor.x),
-            y = math.floor(saved.anchor.y),
-            facing = saved.anchor.facing < 0 and -1 or 1,
-            world = saved.world,
-        }
-        status.Text = "RESUMING CHECKPOINT"
-    end
-    writeJson(CHECKPOINT_PATH, {
-        version = 1, kind = "autofarm", world = anchor.world,
-        blockId = id, anchor = anchor, savedAt = os.time(),
-    })
     farmToken += 1
     local token = farmToken
     farmRunning = true
@@ -2366,7 +2240,7 @@ end
 
 -- Pantau toggle Auto Farm. startFarm() menangkap anchor baru setiap ON.
 task.spawn(function()
-    while runtimeAlive() do
+    while true do
         if farmEnabled and not farmRunning then
             startFarm()
         elseif not farmEnabled and farmRunning then
