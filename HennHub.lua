@@ -308,7 +308,28 @@ page.BorderSizePixel = 0
 page.ScrollBarThickness = 2
 page.ScrollBarImageColor3 = C.border
 page.CanvasSize = UDim2.new(0,0,0,0)
+page.Visible = true
 page.Parent = content
+
+-- Create the remaining tab pages before building their two-column layouts.
+local function createTabPage(name)
+    local frame = Instance.new("ScrollingFrame")
+    frame.Name = name
+    frame.Position = UDim2.fromOffset(6,23)
+    frame.Size = UDim2.new(1,-12,1,-28)
+    frame.BackgroundTransparency = 1
+    frame.BorderSizePixel = 0
+    frame.ScrollBarThickness = 2
+    frame.ScrollBarImageColor3 = C.border
+    frame.CanvasSize = UDim2.new(0,0,0,0)
+    frame.Visible = false
+    frame.Parent = content
+    return frame
+end
+
+local farmPage = createTabPage("AutoFarmPage")
+local dfPage = createTabPage("AutoDFPage")
+local miscPage = createTabPage("MiscPage")
 
 local function setupColumns(scroller)
     for _, child in ipairs(scroller:GetChildren()) do
