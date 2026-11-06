@@ -11,6 +11,53 @@ local UIS = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
+local HttpService = game:GetService("HttpService")
+local sharedEnv = (type(getgenv) == "function" and getgenv()) or _G
+if sharedEnv.__HennHubRuntime then
+    sharedEnv.__HennHubRuntime.shutdown = true
+end
+local runtime = { shutdown = false }
+sharedEnv.__HennHubRuntime = runtime
+local function runtimeAlive()
+    return not runtime.shutdown and sharedEnv.__HennHubRuntime == runtime
+end
+
+local CONFIG_PATH = "HennHub/config.json"
+local CHECKPOINT_PATH = "HennHub/checkpoint.json"
+local function canUseFiles()
+    return type(readfile) == "function" and type(writefile) == "function"
+        and type(isfile) == "function"
+end
+local function ensureFolder()
+    if type(makefolder) == "function" and type(isfolder) == "function" then
+        if not isfolder("HennHub") then pcall(makefolder, "HennHub") end
+    end
+end
+local function readJson(path)
+    if canUseFiles() then
+        local ok, raw = pcall(function()
+            if not isfile(path) then return nil end
+            return readfile(path)
+        end)
+        if ok and type(raw) == "string" then
+            local decodedOk, data = pcall(HttpService.JSONDecode, HttpService, raw)
+            if decodedOk and type(data) == "table" then return data end
+        end
+    end
+    local memory = sharedEnv.__HennHubData
+    return type(memory) == "table" and memory[path] or nil
+end
+local function writeJson(path, data)
+    sharedEnv.__HennHubData = sharedEnv.__HennHubData or {}
+    sharedEnv.__HennHubData[path] = data
+    if not canUseFiles() then return true end
+    ensureFolder()
+    local ok, raw = pcall(HttpService.JSONEncode, HttpService, data)
+    if not ok then return false end
+    local wrote = pcall(writefile, path, raw)
+    return wrote
+end
+
 local old = playerGui:FindFirstChild("HennHubCustom")
 if old then old:Destroy() end
 
@@ -93,7 +140,7 @@ constraint.MinSize = Vector2.new(300,340)
 constraint.MaxSize = Vector2.new(500,440)
 constraint.Parent = main
 
--- HEADER
+-- HEADER + TOP TAB BAR
 local header = Instance.new("Frame")
 header.Size = UDim2.new(1,0,0,42)
 header.BackgroundColor3 = C.panel
@@ -101,72 +148,61 @@ header.BorderSizePixel = 0
 header.Parent = main
 corner(header,12)
 
-local title = label(
+-- Title dibuat menjadi tombol toggle panel.
+local titleButton = button(
     header,"HennHub",
-    UDim2.new(0,100,1,0),
-    UDim2.fromOffset(13,0),15,C.text
+    UDim2.fromOffset(74,27),
+    UDim2.fromOffset(8,7),C.panel2
 )
-title.Font = Enum.Font.GothamBold
+titleButton.TextSize = 13
+titleButton.Font = Enum.Font.GothamBold
+titleButton.TextColor3 = C.green
 
--- GROWBLOX TITLE REMOVED
-
-local minimize = button(
-    header,"-",UDim2.fromOffset(26,24),
-    UDim2.new(1,-60,0,9)
-)
-
-local close = button(
-    header,"×",UDim2.fromOffset(26,24),
-    UDim2.new(1,-30,0,9),C.red
-)
-
--- SINGLE TAB SIDEBAR
-local sidebar = Instance.new("Frame")
-sidebar.Position = UDim2.fromOffset(8,49)
-sidebar.Size = UDim2.new(0,112,1,-57)
-sidebar.BackgroundColor3 = C.panel
-sidebar.BorderSizePixel = 0
-sidebar.Parent = main
-corner(sidebar,9)
-
-label(
-    sidebar,"MENU",
-    UDim2.new(1,-16,0,25),
-    UDim2.fromOffset(9,5),10,C.muted
-)
-
+-- Tab horizontal di bagian atas, mengikuti gaya UI script referensi.
 local tab = button(
-    sidebar,"Auto Farm",
-    UDim2.new(1,-10,0,32),
-    UDim2.fromOffset(5,33),C.blue
+    header,"AUTO PNB",
+    UDim2.fromOffset(72,27),
+    UDim2.fromOffset(86,7),C.blue
 )
 tab.TextSize = 10
 
+local farmTab = button(
+    header,"AUTO FARM",
+    UDim2.fromOffset(68,27),
+    UDim2.fromOffset(162,7),C.panel2
+)
+farmTab.TextSize = 10
+
 local dfTab = button(
-    sidebar,"Auto DF",
-    UDim2.new(1,-10,0,32),
-    UDim2.fromOffset(5,70),C.panel2
+    header,"AUTO DF",
+    UDim2.fromOffset(60,27),
+    UDim2.fromOffset(234,7),C.panel2
 )
 dfTab.TextSize = 10
 
 local miscTab = button(
-    sidebar,"Misc",
-    UDim2.new(1,-10,0,32),
-    UDim2.fromOffset(5,107),C.panel2
+    header,"Misc",
+    UDim2.fromOffset(42,27),
+    UDim2.fromOffset(298,7),C.panel2
 )
 miscTab.TextSize = 10
 
+local close = button(
+    header,"×",UDim2.fromOffset(26,24),
+    UDim2.new(1,-34,0,9),C.red
+)
+
 -- CONTENT
 local content = Instance.new("Frame")
-content.Position = UDim2.new(0,128,0,49)
-content.Size = UDim2.new(1,-136,1,-57)
+content.Position = UDim2.fromOffset(8,49)
+content.Size = UDim2.new(1,-16,1,-57)
 content.BackgroundColor3 = C.panel
 content.BorderSizePixel = 0
 content.Parent = main
 corner(content,9)
 
 local pageTitle = label(
-    content,"AUTO FARM",
+    content,"AUTO PNB",
     UDim2.new(1,-18,0,29),
     UDim2.fromOffset(10,5),13,C.text
 )
@@ -191,6 +227,25 @@ layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
     page.CanvasSize = UDim2.new(
         0,0,0,layout.AbsoluteContentSize.Y+8
     )
+end)
+
+-- Halaman AUTO FARM khusus Plant / Harvest.
+local farmPage = Instance.new("ScrollingFrame")
+farmPage.Position = UDim2.fromOffset(7,37)
+farmPage.Size = UDim2.new(1,-14,1,-44)
+farmPage.BackgroundTransparency = 1
+farmPage.BorderSizePixel = 0
+farmPage.ScrollBarThickness = 3
+farmPage.ScrollBarImageColor3 = C.border
+farmPage.CanvasSize = UDim2.new(0,0,0,0)
+farmPage.Visible = false
+farmPage.Parent = content
+local farmLayout = Instance.new("UIListLayout")
+farmLayout.Padding = UDim.new(0,7)
+farmLayout.SortOrder = Enum.SortOrder.LayoutOrder
+farmLayout.Parent = farmPage
+farmLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    farmPage.CanvasSize = UDim2.new(0,0,0,farmLayout.AbsoluteContentSize.Y+8)
 end)
 
 local dfPage = Instance.new("ScrollingFrame")
@@ -233,28 +288,33 @@ miscLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
 end)
 
 local function switchPage(which)
+    local isFarm = which == "farm"
     local isDF = which == "df"
     local isMisc = which == "misc"
-    page.Visible = not isDF and not isMisc
+    page.Visible = not isFarm and not isDF and not isMisc -- AUTO PNB
+    farmPage.Visible = isFarm
     dfPage.Visible = isDF
     miscPage.Visible = isMisc
-    pageTitle.Text = isDF and "AUTO DF" or (isMisc and "MISC" or "AUTO FARM")
-    tab.BackgroundColor3 = (not isDF and not isMisc) and C.blue or C.panel2
+    pageTitle.Text = isFarm and "AUTO FARM" or (isDF and "AUTO DF" or (isMisc and "MISC" or "AUTO PNB"))
+    tab.BackgroundColor3 = (not isFarm and not isDF and not isMisc) and C.blue or C.panel2
+    farmTab.BackgroundColor3 = isFarm and C.blue or C.panel2
     dfTab.BackgroundColor3 = isDF and C.blue or C.panel2
     miscTab.BackgroundColor3 = isMisc and C.blue or C.panel2
 end
 
-tab.Activated:Connect(function() switchPage("farm") end)
+tab.Activated:Connect(function() switchPage("pnb") end)
+farmTab.Activated:Connect(function() switchPage("farm") end)
 dfTab.Activated:Connect(function() switchPage("df") end)
 miscTab.Activated:Connect(function() switchPage("misc") end)
 
 -- SECTION: CENTERED TITLE, NO GRAY BACKGROUND
+local buildPage = page
 local function section(text)
     local box = Instance.new("Frame")
     box.Size = UDim2.new(1,-2,0,27)
     box.BackgroundTransparency = 1
     box.BorderSizePixel = 0
-    box.Parent = page
+    box.Parent = buildPage
 
     local heading = label(
         box,text,
@@ -277,7 +337,7 @@ local function makeInput(placeholder)
     box.TextSize = 12
     box.Font = Enum.Font.Gotham
     box.ClearTextOnFocus = false
-    box.Parent = page
+    box.Parent = buildPage
     corner(box,7)
     stroke(box,C.border)
     return box
@@ -288,7 +348,7 @@ local function makeToggle(name, callback)
     row.Size = UDim2.new(1,-2,0,36)
     row.BackgroundColor3 = C.panel2
     row.BorderSizePixel = 0
-    row.Parent = page
+    row.Parent = buildPage
     corner(row,7)
 
     label(
@@ -534,7 +594,8 @@ setCollectToggle = makeToggle("Enable Auto Collect", function(on)
     end
 end)
 
--- AUTO PLANT / HARVEST: ID dimasukkan langsung, tanpa /gs atau /bid.
+-- AUTO PLANT / HARVEST ditempatkan di tab AUTO FARM.
+buildPage = farmPage
 section("AUTO PLANT / HARVEST")
 local seedInput = makeInput("Seed ID")
 local harvestInput = makeInput("Harvest ID (ID tanaman matang)")
@@ -671,6 +732,60 @@ itemIdResult.TextWrapped = true
 itemIdResult.Parent = miscPage
 corner(itemIdResult,7)
 
+miscSection("SAVE / LOAD")
+local saveConfigButton = button(miscPage,"SAVE CONFIG",UDim2.new(1,-2,0,34),UDim2.new(),C.blue)
+saveConfigButton.TextSize = 11
+local loadConfigButton = button(miscPage,"LOAD CONFIG",UDim2.new(1,-2,0,34),UDim2.new(),C.blue)
+loadConfigButton.TextSize = 11
+local persistenceHint = label(miscPage,"Config tersimpan lokal jika executor mendukung file API.",UDim2.new(1,-4,0,30),UDim2.new(),10,C.muted)
+persistenceHint.TextXAlignment = Enum.TextXAlignment.Center
+
+local function saveCurrentConfig()
+    local config = {
+        version = 1,
+        blockId = blockInput.Text,
+        seedId = seedInput.Text,
+        harvestId = harvestInput.Text,
+        speed = speed,
+        selectedCells = selectedCells,
+    }
+    return writeJson(CONFIG_PATH, config)
+end
+
+local function loadCurrentConfig()
+    local config = readJson(CONFIG_PATH)
+    if not config or config.version ~= 1 then return false end
+    blockInput.Text = tostring(config.blockId or "")
+    seedInput.Text = tostring(config.seedId or "")
+    harvestInput.Text = tostring(config.harvestId or "")
+    if type(config.speed) == "number" then
+        speed = math.clamp(config.speed, 0.05, 1)
+        speedText.Text = string.format("%.2fs", speed)
+        local fraction = math.clamp((speed - 0.05) / 0.95, 0, 1)
+        fill.Size = UDim2.new(fraction, 0, 1, 0)
+    end
+    if type(config.selectedCells) == "table" then
+        for key, value in pairs(config.selectedCells) do
+            if selectedCells[key] ~= nil then
+                selectedCells[key] = value == true
+                local row, col = key:match("^(-?%d+),(-?%d+)$")
+                local cell = row and gridHolder:FindFirstChild("Cell_"..row.."_"..col)
+                if cell then cell.BackgroundColor3 = selectedCells[key] and C.green or C.grid end
+            end
+        end
+    end
+    return true
+end
+
+saveConfigButton.Activated:Connect(function()
+    local ok = saveCurrentConfig()
+    persistenceHint.Text = ok and "CONFIG SAVED" or "File API tidak tersedia."
+end)
+loadConfigButton.Activated:Connect(function()
+    local ok = loadCurrentConfig()
+    persistenceHint.Text = ok and "CONFIG LOADED" or "Config tidak ditemukan / file API tidak tersedia."
+end)
+
 -- FLOATING BUTTON
 local openButton = button(
     gui,"H",
@@ -696,7 +811,7 @@ local function showWindow()
     openButton.Visible = false
 end
 
-minimize.Activated:Connect(hideWindow)
+titleButton.Activated:Connect(hideWindow)
 close.Activated:Connect(hideWindow)
 
 -- DRAG HELPER
@@ -1474,13 +1589,21 @@ local function runAutoDF(token)
     local minX, maxX = 1, math.min(98, world.w - 2)
     local leftEdgeX, rightEdgeX = 0, math.min(99, world.w - 1)
     local startY = math.max(0, math.floor(currentY))
+    local savedDF = readJson(CHECKPOINT_PATH)
+    local dfResume = savedDF and savedDF.kind == "autodf"
+        and savedDF.world == worldName()
+        and savedDF.worldW == world.w and savedDF.worldH == world.h
+        and type(savedDF.nextY) == "number"
+        and savedDF.nextY >= 0 and savedDF.nextY < world.h
+        and type(savedDF.nextFromRight) == "boolean"
+    if dfResume then startY = math.floor(savedDF.nextY) end
     if maxX < minX or startY >= world.h then
         dfStatus.Text = "AREA INVALID"
         return
     end
 
     local function cancelled()
-        return token ~= dfToken or not dfEnabled
+        return token ~= dfToken or not dfEnabled or not runtimeAlive()
     end
 
     local function isLaneTarget(x, y)
@@ -1610,51 +1733,73 @@ local function runAutoDF(token)
         return breakBatch(cells)
     end
 
-    local nextFromRight = (currentX - minX) >= (maxX - currentX)
-    -- Tandai setiap lane yang sudah dilewati agar tidak pernah diproses ulang.
-    -- Start berada di Y karakter; buka pojok 5 tile lebih dulu, lalu buka
-    -- tile masuk pada Y+2 sebelum karakter turun dan mulai farming lane itu.
+    local nextFromRight
+    if dfResume then
+        nextFromRight = savedDF.nextFromRight
+    else
+        nextFromRight = (currentX - minX) >= (maxX - currentX)
+    end
+    -- Satu checkpoint disimpan per lane yang sudah selesai.
     local completedLanes = {}
 
+    local firstFarmY
     local initialFromRight = nextFromRight
     local initialStandX = initialFromRight and maxX or minX
-    local initialEdgeX = initialFromRight and rightEdgeX or leftEdgeX
-    dfStatus.Text = string.format("MOVE TO CORNER X=%d Y=%d", initialStandX, startY)
-    local ix, iy = getTile()
-    if not ix or ix ~= initialStandX or iy ~= startY then
-        local moved = Nav.Walk(initialStandX, startY, cancelled)
-        if not moved and not cancelled() then
+    if dfResume then
+        dfStatus.Text = string.format("RESUME AUTO DF Y=%d", startY)
+        local ix, iy = getTile()
+        if not ix or ix ~= initialStandX or iy ~= startY then
+            local moved = Nav.Walk(initialStandX, startY, cancelled)
+            if not moved and not cancelled() then
+                task.wait(DF_TP_COOLDOWN)
+                local ok, result = pcall(world.goTo, initialStandX, startY)
+                if not ok or result == false then
+                    dfStatus.Text = "RESUME POSITION FAILED"
+                    return
+                end
+                task.wait(DF_TP_COOLDOWN)
+            end
+        end
+        firstFarmY = startY
+    else
+        local initialEdgeX = initialFromRight and rightEdgeX or leftEdgeX
+        dfStatus.Text = string.format("MOVE TO CORNER X=%d Y=%d", initialStandX, startY)
+        local ix, iy = getTile()
+        if not ix or ix ~= initialStandX or iy ~= startY then
+            local moved = Nav.Walk(initialStandX, startY, cancelled)
+            if not moved and not cancelled() then
+                task.wait(DF_TP_COOLDOWN)
+                local ok, result = pcall(world.goTo, initialStandX, startY)
+                if not ok or result == false then
+                    dfStatus.Text = "MOVE TO INITIAL CORNER FAILED"
+                    return
+                end
+                task.wait(DF_TP_COOLDOWN)
+            end
+        end
+        if cancelled() then return end
+
+        local initialCornerY = math.max(0, startY - 2)
+        dfStatus.Text = string.format("CHECK CORNER X=%d Y=%d..%d", initialEdgeX, initialCornerY, math.min(world.h - 1, startY + 2))
+        if not clearEdge(initialEdgeX, initialCornerY, 5) then return end
+
+        firstFarmY = startY + 2
+        dfStatus.Text = string.format("CLEAR ENTRY X=%d Y=%d", initialStandX, firstFarmY)
+        breakTargetAt(initialStandX, firstFarmY)
+        if cancelled() then return end
+        dfStatus.Text = string.format("MOVE DOWN X=%d Y=%d", initialStandX, firstFarmY)
+        local downOk = Nav.Walk(initialStandX, firstFarmY, cancelled)
+        if not downOk and not cancelled() then
             task.wait(DF_TP_COOLDOWN)
-            local ok, result = pcall(world.goTo, initialStandX, startY)
+            local ok, result = pcall(world.goTo, initialStandX, firstFarmY)
             if not ok or result == false then
-                dfStatus.Text = "MOVE TO INITIAL CORNER FAILED"
+                dfStatus.Text = "MOVE DOWN TO FIRST LANE FAILED"
                 return
             end
             task.wait(DF_TP_COOLDOWN)
         end
+        if cancelled() then return end
     end
-    if cancelled() then return end
-
-    local initialCornerY = math.max(0, startY - 2)
-    dfStatus.Text = string.format("CHECK CORNER X=%d Y=%d..%d", initialEdgeX, initialCornerY, math.min(world.h - 1, startY + 2))
-    if not clearEdge(initialEdgeX, initialCornerY, 5) then return end
-
-    local firstFarmY = startY + 2
-    dfStatus.Text = string.format("CLEAR ENTRY X=%d Y=%d", initialStandX, firstFarmY)
-    breakTargetAt(initialStandX, firstFarmY)
-    if cancelled() then return end
-    dfStatus.Text = string.format("MOVE DOWN X=%d Y=%d", initialStandX, firstFarmY)
-    local downOk = Nav.Walk(initialStandX, firstFarmY, cancelled)
-    if not downOk and not cancelled() then
-        task.wait(DF_TP_COOLDOWN)
-        local ok, result = pcall(world.goTo, initialStandX, firstFarmY)
-        if not ok or result == false then
-            dfStatus.Text = "MOVE DOWN TO FIRST LANE FAILED"
-            return
-        end
-        task.wait(DF_TP_COOLDOWN)
-    end
-    if cancelled() then return end
 
     for y = firstFarmY, world.h - 1, 2 do
         if cancelled() then break end
@@ -1666,6 +1811,11 @@ local function runAutoDF(token)
         if not hasTargetOnLane(y) then
             completedLanes[y] = true
             dfStatus.Text = string.format("SKIP Y=%d (ALREADY CLEAR)", y)
+            writeJson(CHECKPOINT_PATH, {
+                version = 1, kind = "autodf", world = worldName(),
+                worldW = world.w, worldH = world.h, nextY = y + 2,
+                nextFromRight = nextFromRight, savedAt = os.time(),
+            })
             task.wait(0.04)
             continue
         end
@@ -1756,6 +1906,11 @@ local function runAutoDF(token)
         -- di pojok saat membuka jalur untuk lane berikutnya.
         completedLanes[y] = true
         nextFromRight = not nextFromRight
+        writeJson(CHECKPOINT_PATH, {
+            version = 1, kind = "autodf", world = worldName(),
+            worldW = world.w, worldH = world.h, nextY = y + 2,
+            nextFromRight = nextFromRight, savedAt = os.time(),
+        })
         task.wait(0.05)
     end
 
@@ -1764,6 +1919,9 @@ local function runAutoDF(token)
         dfButton.Text = "START AUTO DF"
         dfButton.BackgroundColor3 = C.green
         dfStatus.Text = cancelled() and "STOPPED" or "COMPLETE"
+        if not cancelled() then
+            writeJson(CHECKPOINT_PATH, { version = 1, kind = "complete", world = worldName(), savedAt = os.time() })
+        end
     end
 end
 
@@ -1834,7 +1992,7 @@ end
 
 local function plantHarvestLoop(token, anchor)
     local function cancel()
-        return plantHarvestToken ~= token or (not plantEnabled and not harvestEnabled)
+        return plantHarvestToken ~= token or (not plantEnabled and not harvestEnabled) or not runtimeAlive()
     end
     while not cancel() do
         local world = getWorld()
@@ -1923,7 +2081,7 @@ end
 
 task.spawn(function()
     local wasEnabled = false
-    while true do
+    while runtimeAlive() do
         local enabled = plantEnabled or harvestEnabled
         if enabled and not wasEnabled then
             startPlantHarvest()
@@ -1937,7 +2095,7 @@ end)
 
 -- return: alasan berhenti (string) atau nil kalau dihentikan manual
 local function farmLoop(token, anchor, id)
-    local function cancel() return farmToken ~= token end
+    local function cancel() return farmToken ~= token or not runtimeAlive() end
     while not cancel() do
         local world = getWorld()
         if not world then return "NO WORLD" end
@@ -2035,6 +2193,25 @@ local function startFarm()
         facing = facing,
         world = worldName(),
     }
+    local saved = readJson(CHECKPOINT_PATH)
+    if saved and saved.kind == "autofarm" and saved.world == worldName()
+        and tonumber(saved.blockId) == id
+        and type(saved.anchor) == "table"
+        and type(saved.anchor.x) == "number" and type(saved.anchor.y) == "number"
+        and type(saved.anchor.facing) == "number"
+        and getWorld() and inBounds(getWorld(), saved.anchor.x, saved.anchor.y) then
+        anchor = {
+            x = math.floor(saved.anchor.x),
+            y = math.floor(saved.anchor.y),
+            facing = saved.anchor.facing < 0 and -1 or 1,
+            world = saved.world,
+        }
+        status.Text = "RESUMING CHECKPOINT"
+    end
+    writeJson(CHECKPOINT_PATH, {
+        version = 1, kind = "autofarm", world = anchor.world,
+        blockId = id, anchor = anchor, savedAt = os.time(),
+    })
     farmToken += 1
     local token = farmToken
     farmRunning = true
@@ -2052,7 +2229,7 @@ end
 
 -- Pantau toggle Auto Farm. startFarm() menangkap anchor baru setiap ON.
 task.spawn(function()
-    while true do
+    while runtimeAlive() do
         if farmEnabled and not farmRunning then
             startFarm()
         elseif not farmEnabled and farmRunning then
