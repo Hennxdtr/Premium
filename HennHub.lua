@@ -290,8 +290,12 @@ local function updateResponsiveLayout()
     end
 
     local floatSize = math.clamp(math.floor(math.min(viewport.X, viewport.Y) * 0.105), 38, 46)
-    openButton.Size = UDim2.fromOffset(floatSize, floatSize)
-    openButton.Position = UDim2.new(0, 12, 0.5, -floatSize/2)
+    -- The responsive layout can run before the floating button is created.
+    -- Guard it here, then apply the layout again after the button exists.
+    if openButton then
+        openButton.Size = UDim2.fromOffset(floatSize, floatSize)
+        openButton.Position = UDim2.new(0, 12, 0.5, -floatSize/2)
+    end
 end
 
 local pageTitle = label(
@@ -920,6 +924,7 @@ openButton.Font = Enum.Font.GothamBold
 corner(openButton,50)
 stroke(openButton,C.green)
 
+-- Reapply responsive sizing now that the floating button exists.
 updateResponsiveLayout()
 if camera then
     camera:GetPropertyChangedSignal("ViewportSize"):Connect(updateResponsiveLayout)
