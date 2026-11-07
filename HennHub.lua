@@ -48,7 +48,7 @@ end
 local function stroke(obj,color)
     local s = Instance.new("UIStroke")
     s.Color = color or C.border
-    s.Thickness = 1
+    s.Thickness = 0.65
     s.Parent = obj
 end
 
@@ -92,7 +92,7 @@ main.BackgroundColor3 = C.bg
 main.BorderSizePixel = 0
 main.Parent = gui
 corner(main,12)
-stroke(main,C.border)
+stroke(main,C.outline)
 
 local constraint = Instance.new("UISizeConstraint")
 constraint.MinSize = Vector2.new(300,340)
@@ -106,6 +106,7 @@ header.BackgroundColor3 = C.panel
 header.BorderSizePixel = 0
 header.Parent = main
 corner(header,12)
+stroke(header,C.outline)
 
 local title = label(
     header,"HennHub",
@@ -134,6 +135,7 @@ sidebar.BackgroundColor3 = C.panel
 sidebar.BorderSizePixel = 0
 sidebar.Parent = main
 corner(sidebar,9)
+stroke(sidebar,C.outline)
 
 label(
     sidebar,"MENU",
@@ -168,6 +170,11 @@ miscTab.TextSize = 10
 local settingTab = button(sidebar,"Setting",UDim2.new(1,-10,0,32),UDim2.fromOffset(5,181),C.panel2)
 settingTab.TextSize = 10
 
+-- Thin white outlines are reserved for navigation tabs.
+for _, navTab in ipairs({tab, plantTab, dfTab, miscTab, settingTab}) do
+    stroke(navTab, C.outline)
+end
+
 -- CONTENT
 local content = Instance.new("Frame")
 content.Position = UDim2.new(0,128,0,49)
@@ -176,6 +183,7 @@ content.BackgroundColor3 = C.panel
 content.BorderSizePixel = 0
 content.Parent = main
 corner(content,9)
+stroke(content,C.outline)
 
 local pageTitle = label(
     content,"AUTO PNB",
@@ -321,7 +329,6 @@ local function makeInput(placeholder)
     box.ClearTextOnFocus = false
     box.Parent = page
     corner(box,7)
-    stroke(box,C.outline)
     return box
 end
 
@@ -332,7 +339,6 @@ local function makeToggle(name, callback)
     row.BorderSizePixel = 0
     row.Parent = page
     corner(row,7)
-    stroke(row,C.outline)
 
     label(
         row,name,
@@ -370,7 +376,6 @@ gridFrame.BackgroundColor3 = C.panel2
 gridFrame.BorderSizePixel = 0
 gridFrame.Parent = page
 corner(gridFrame,8)
-    stroke(gridFrame,C.outline)
 
 local gridHolder = Instance.new("Frame")
 gridHolder.AnchorPoint = Vector2.new(.5,.5)
@@ -435,7 +440,6 @@ speedRow.BackgroundColor3 = C.panel2
 speedRow.BorderSizePixel = 0
 speedRow.Parent = page
 corner(speedRow,7)
-    stroke(speedRow,C.outline)
 
 local speed = 0.22
 
@@ -520,7 +524,6 @@ farmRow.BackgroundColor3 = C.panel2
 farmRow.BorderSizePixel = 0
 farmRow.Parent = page
 corner(farmRow,7)
-    stroke(farmRow,C.outline)
 
 label(
     farmRow,"Auto Farm",
@@ -594,7 +597,6 @@ local function dfInfoRow(titleText)
     local value = label(row,"--",UDim2.new(.5,-12,1,0),UDim2.new(.5,0,0,0),12,C.text)
     value.TextXAlignment = Enum.TextXAlignment.Right
     value.Font = Enum.Font.GothamBold
-    stroke(row,C.outline)
     return value
 end
 
@@ -613,7 +615,6 @@ dfDescription.TextWrapped = true
 dfDescription.Text = "Area X: 1-98 | Lane Y: 38, 40, 42... sampai bawah. Arah lane bergantian kanan-kiri."
 dfDescription.Parent = dfPage
 corner(dfDescription,7)
-    stroke(dfDescription,C.outline)
 local dfStatus = dfInfoRow("STATUS")
 local dfEnabled = false
 local dfButton = button(dfPage,"START",UDim2.new(1,-2,0,36),UDim2.new(),C.green)
@@ -683,7 +684,6 @@ miscItemInput.Font = Enum.Font.Gotham
 miscItemInput.ClearTextOnFocus = false
 miscItemInput.Parent = miscPage
 corner(miscItemInput,7)
-stroke(miscItemInput,C.outline)
 local checkIdButton = button(miscPage,"ITEM ID",UDim2.new(1,-2,0,34),UDim2.new(),C.blue)
 checkIdButton.TextSize = 11
 local itemIdResult = Instance.new("TextLabel")
@@ -697,7 +697,6 @@ itemIdResult.TextSize = 11
 itemIdResult.TextWrapped = true
 itemIdResult.Parent = miscPage
 corner(itemIdResult,7)
-    stroke(itemIdResult,C.outline)
 
 -- SETTING: named configs with persistent storage (executor file APIs)
 local function settingSection(text)
@@ -719,7 +718,6 @@ local function settingInput(placeholder)
     box.Font = Enum.Font.Gotham
     box.ClearTextOnFocus = false
     box.Parent = settingPage
-    corner(box,7); stroke(box,C.outline)
     return box
 end
 settingSection("CONFIGURATION MANAGER")
@@ -858,7 +856,7 @@ end)
 local function makeGroupCard(parent, titleText, items, width)
     local card = Instance.new("Frame")
     card.Name = "Group_" .. tostring(titleText):gsub("%W+", "")
-    card.Size = width or UDim2.new(1, -6, 0, 0)
+    card.Size = width or UDim2.new(1, 0, 0, 0)
     card.AutomaticSize = Enum.AutomaticSize.Y
     card.BackgroundColor3 = Color3.fromRGB(30, 34, 43)
     card.BorderSizePixel = 0
@@ -874,7 +872,7 @@ local function makeGroupCard(parent, titleText, items, width)
     pad.Parent = card
 
     local cardLayout = Instance.new("UIListLayout")
-    cardLayout.Padding = UDim.new(0, 6)
+    cardLayout.Padding = UDim.new(0, 8)
     cardLayout.SortOrder = Enum.SortOrder.LayoutOrder
     cardLayout.Parent = card
 
@@ -897,7 +895,7 @@ local function makeGroupCard(parent, titleText, items, width)
     body.Parent = card
 
     local bodyLayout = Instance.new("UIListLayout")
-    bodyLayout.Padding = UDim.new(0, 5)
+    bodyLayout.Padding = UDim.new(0, 6)
     bodyLayout.SortOrder = Enum.SortOrder.LayoutOrder
     bodyLayout.Parent = body
 
@@ -967,7 +965,7 @@ local function rebuildAsGroupboxes(scroll, pageName)
     if #columnGroups > 0 then
         local holder = Instance.new("Frame")
         holder.Name = "GroupboxColumns"
-        holder.Size = UDim2.new(1, -6, 0, 0)
+        holder.Size = UDim2.new(1, 0, 0, 0)
         holder.BackgroundTransparency = 1
         holder.BorderSizePixel = 0
         holder.LayoutOrder = order + 1
@@ -1006,7 +1004,7 @@ local function rebuildAsGroupboxes(scroll, pageName)
 
         local function updateColumns()
             local height = math.max(leftLayout.AbsoluteContentSize.Y, rightLayout.AbsoluteContentSize.Y)
-            holder.Size = UDim2.new(1, -6, 0, height)
+            holder.Size = UDim2.new(1, 0, 0, height)
             scroll.CanvasSize = UDim2.new(0, 0, 0, rootLayout.AbsoluteContentSize.Y + 10)
         end
         leftLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateColumns)
@@ -1041,7 +1039,6 @@ openButton.TextColor3 = C.green
 openButton.TextSize = 20
 openButton.Font = Enum.Font.GothamBold
 corner(openButton,50)
-stroke(openButton,C.green)
 
 local function hideWindow()
     main.Visible = false
